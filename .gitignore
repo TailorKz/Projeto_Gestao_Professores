@@ -1,2 +1,5 @@
 # Ignorar o banco de dados do SQLite
+uploads/
 gestor.db
+__pycache__/
+*.pyc
