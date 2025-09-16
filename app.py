@@ -1,6 +1,6 @@
 import sqlite3
 import locale
-from flask import Flask, render_template, abort, url_for, request, redirect, flash, jsonify, send_file
+from flask import Flask, render_template, abort, url_for, request, redirect, flash, jsonify, send_file, send_from_directory
 import datetime
 import os
 from werkzeug.utils import secure_filename
@@ -14,6 +14,9 @@ import calendar
 import boto3
 from botocore.exceptions import NoCredentialsError
 
+# --- CONFIGURAÇÃO DE CAMINHO DINÂMICO ---
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
 # --- CONFIGURAÇÃO DE LOCAL E FLASK ---
 try:
     locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
@@ -21,9 +24,9 @@ except locale.Error:
     print("AVISO: Locale 'pt_BR.UTF-8' não encontrado.")
 
 app = Flask(__name__)
-DATABASE = '/home/TailorKz/Projeto_Gestao_Professores/Gestor_Cultural/gestor.db'
+DATABASE = os.path.join(BASE_DIR, 'gestor.db')
 app.config['SECRET_KEY'] = 'uma-chave-secreta-muito-dificil'
-UPLOAD_FOLDER = '/tmp/uploads' # Usar uma pasta temporária do sistema
+UPLOAD_FOLDER = '/tmp/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # --- CONFIGURAÇÃO DO CLOUDFLARE R2 ---
@@ -114,7 +117,7 @@ def deletar_professor(professor_id):
     flash('Professor apagado com sucesso.', 'success')
     return redirect(url_for('index'))
 
-# --- ROTAS DE UPLOAD E VISUALIZAÇÃO DE FICHEIROS ---
+# --- ROTAS DE DETALHES, UPLOAD E VISUALIZAÇÃO ---
 @app.route('/professor/<int:professor_id>')
 def detalhes_professor(professor_id):
     db = get_db()
@@ -176,10 +179,14 @@ def deletar_documento(doc_id):
         db.execute('DELETE FROM documentos WHERE id = ?', (doc_id,))
         db.commit()
         flash('Documento apagado com sucesso.', 'success')
+        professor_id = doc['professor_id']
+        ano = doc['ano']
+        mes = doc['mes']
+        db.close()
+        return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
     db.close()
-    return redirect(url_for('mes_detalhes', professor_id=doc['professor_id'], ano=doc['ano'], mes=doc['mes']))
+    return redirect(url_for('index'))
 
-# --- FERRAMENTAS ---
 @app.route('/ferramentas')
 def ferramentas_pdf():
     return render_template('ferramentas.html')
@@ -315,77 +322,7 @@ def parcela_gastos(categoria, ano, parcela):
                            valor_inicial=valor_inicial, gastos=gastos, total_gasto=total_gasto, saldo=saldo)
 
 @app.route('/professor/<int:professor_id>')
-def detalhes_professor(professor_id):
 
-    db = get_db()
-    professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
-    db.close()
-    if professor is None:
-        abort(404)
-    
-    ano_atual = datetime.datetime.now().year
-    anos = [ano_atual + i for i in range(3)] 
-
-    meses = [(m, datetime.date(2000, m, 1).strftime('%B').capitalize()) for m in range(1, 13)]
-    
-    return render_template('professor_detalhes.html', professor=professor, meses=meses, anos=anos)
-
-
-@app.route('/professor/<int:professor_id>/<int:ano>/<int:mes>', methods=['GET', 'POST'])
-def mes_detalhes(professor_id, ano, mes):
-
-    db = get_db()
-    professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
-    
-    if professor is None:
-        db.close()
-        abort(404)
-        
-    nome_mes = datetime.date(ano, mes, 1).strftime('%B').capitalize()
-
-    if request.method == 'POST':
-        arquivos = {
-            'NF': request.files.get('nota_fiscal'),
-            'Relatorio': request.files.get('relatorio'),
-            'Chamada': request.files.get('chamada')
-        }
-
-        for tipo, arquivo in arquivos.items():
-            if arquivo and arquivo.filename != '':
-                filename_seguro = secure_filename(arquivo.filename)
-                nome_final = f"{professor_id}_{ano}_{mes}_{tipo}_{filename_seguro}"
-                caminho_salvar = os.path.join(app.config['UPLOAD_FOLDER'], nome_final)
-                arquivo.save(caminho_salvar)
-                
-                dados_ocr = {}
-                if tipo == 'NF':
-                    dados_ocr = processar_nf(caminho_salvar)
-
-                db.execute(
-                    '''INSERT INTO documentos (professor_id, mes, ano, tipo_documento, caminho_arquivo, 
-                                              nf_numero, nf_data, nf_valor)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                    (
-                        professor_id, mes, ano, tipo, nome_final,
-                        dados_ocr.get('numero'),
-                        dados_ocr.get('data'),
-                        dados_ocr.get('valor')
-                    )
-                )
-        
-        db.commit()
-        db.close()
-        flash('Documentos enviados e processados com sucesso!', 'success')
-        return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
-
-    docs_db = db.execute(
-        'SELECT * FROM documentos WHERE professor_id = ? AND mes = ? AND ano = ?',
-        (professor_id, mes, ano)
-    ).fetchall()
-    db.close()
-    documentos = {doc['tipo_documento']: doc for doc in docs_db}
-
-    return render_template('mes_detalhes.html', professor=professor, mes_numero=mes, nome_mes=nome_mes, ano=ano, documentos=documentos)
 
 
 @app.route('/uploads/<path:filename>')
@@ -393,26 +330,6 @@ def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
-@app.route('/documento/deletar/<int:doc_id>', methods=['POST'])
-def deletar_documento(doc_id):
-    db = get_db()
-    doc = db.execute('SELECT * FROM documentos WHERE id = ?', (doc_id,)).fetchone()
-    
-    if doc:
-        try:
-            caminho_arquivo = os.path.join(app.config['UPLOAD_FOLDER'], doc['caminho_arquivo'])
-            if os.path.exists(caminho_arquivo):
-                os.remove(caminho_arquivo)
-        except Exception as e:
-            print(f"Erro ao deletar arquivo: {e}")
-            flash('Erro ao tentar apagar o arquivo do sistema.', 'error')
-
-        db.execute('DELETE FROM documentos WHERE id = ?', (doc_id,))
-        db.commit()
-        flash('Documento apagado com sucesso. Você pode enviar um novo.', 'success')
-    
-    db.close()
-    return redirect(url_for('mes_detalhes', professor_id=doc['professor_id'], ano=doc['ano'], mes=doc['mes']))
 
 @app.route('/gastos/deletar/<int:gasto_id>', methods=['POST'])
 def deletar_gasto(gasto_id):
