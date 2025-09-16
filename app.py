@@ -1,48 +1,60 @@
 import sqlite3
 import locale
-from flask import Flask, render_template, abort, url_for, request, redirect, flash, send_from_directory, jsonify
+from flask import Flask, render_template, abort, url_for, request, redirect, flash, jsonify, send_file
 import datetime
 import os
 from werkzeug.utils import secure_filename
 from ocr_processor import processar_nf
 from pypdf import PdfWriter
-from docx2pdf import convert
 from openpyxl import Workbook
 from openpyxl.styles import Font
 from io import BytesIO
 from docx import Document
-from docx.shared import Pt
 import calendar
+import boto3
+from botocore.exceptions import NoCredentialsError
 
+# --- CONFIGURAÇÃO DE LOCAL E FLASK ---
 try:
     locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 except locale.Error:
-    try:
-        locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')
-    except locale.Error:
-        print("AVISO: Locale 'pt_BR.UTF-8' ou 'Portuguese_Brazil.1252' não encontrado.")
+    print("AVISO: Locale 'pt_BR.UTF-8' não encontrado.")
 
 app = Flask(__name__)
-
-DATABASE = 'gestor.db'
-UPLOAD_FOLDER = 'uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+DATABASE = '/home/TailorKz/Projeto_Gestao_Professores/Gestor_Cultural/gestor.db'
 app.config['SECRET_KEY'] = 'uma-chave-secreta-muito-dificil'
+UPLOAD_FOLDER = '/tmp/uploads' # Usar uma pasta temporária do sistema
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# --- CONFIGURAÇÃO DO CLOUDFLARE R2 ---
+CLOUDFLARE_ACCOUNT_ID = os.environ.get('CLOUDFLARE_ACCOUNT_ID')
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+BUCKET_NAME = os.environ.get('BUCKET_NAME')
+
+s3_client = None
+if CLOUDFLARE_ACCOUNT_ID:
+    R2_ENDPOINT_URL = f'https://{CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com'
+    s3_client = boto3.client(
+        's3',
+        endpoint_url=R2_ENDPOINT_URL,
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        region_name='auto'
+    )
 
 @app.template_filter('formatar_valor')
 def formatar_valor(value):
-    if value is None:
-        return "0,00"
-    try:
-        return locale.format_string('%.2f', float(value), grouping=True)
-    except (ValueError, TypeError):
-        return value
+    if value is None: return "0,00"
+    try: return locale.format_string('%.2f', float(value), grouping=True)
+    except (ValueError, TypeError): return value
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
 
+# --- ROTA PRINCIPAL ---
 @app.route('/')
 def index():
     db = get_db()
@@ -52,7 +64,7 @@ def index():
     professores_esporte = [p for p in professores_db if p['categoria'] == 'Esporte']
     return render_template('index.html', cultura=professores_cultura, esporte=professores_esporte)
 
-# --- ROTAS DE GESTÃO DE PROFESSORES
+# --- ROTAS DE GESTÃO DE PROFESSORES ---
 @app.route('/professor/adicionar', methods=['GET', 'POST'])
 def adicionar_professor():
     if request.method == 'POST':
@@ -61,64 +73,113 @@ def adicionar_professor():
         cpf = request.form['cpf'] or None
         cnpj = request.form['cnpj'] or None
         dados_bancarios = request.form['dados_bancarios'] or None
-
-        if not nome or not categoria:
-            flash('Nome e Categoria são campos obrigatórios.', 'error')
-        else:
-            db = get_db()
-            db.execute(
-                'INSERT INTO professores (nome, categoria, cpf, cnpj, dados_bancarios) VALUES (?, ?, ?, ?, ?)',
-                (nome, categoria, cpf, cnpj, dados_bancarios)
-            )
-            db.commit()
-            db.close()
-            flash('Professor adicionado com sucesso!', 'success')
-            return redirect(url_for('index'))
-
+        db = get_db()
+        db.execute(
+            'INSERT INTO professores (nome, categoria, cpf, cnpj, dados_bancarios) VALUES (?, ?, ?, ?, ?)',
+            (nome, categoria, cpf, cnpj, dados_bancarios)
+        )
+        db.commit()
+        db.close()
+        flash('Professor adicionado com sucesso!', 'success')
+        return redirect(url_for('index'))
     return render_template('adicionar_professor.html')
 
 @app.route('/professor/editar/<int:professor_id>', methods=['GET', 'POST'])
 def editar_professor(professor_id):
     db = get_db()
     professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
-    db.close()
-
-    if professor is None:
-        abort(404)
-
     if request.method == 'POST':
         nome = request.form['nome']
         categoria = request.form['categoria']
         cpf = request.form['cpf'] or None
         cnpj = request.form['cnpj'] or None
         dados_bancarios = request.form['dados_bancarios'] or None
-
-        if not nome or not categoria:
-            flash('Nome e Categoria são campos obrigatórios.', 'error')
-        else:
-            db = get_db()
-            db.execute(
-                'UPDATE professores SET nome = ?, categoria = ?, cpf = ?, cnpj = ?, dados_bancarios = ? WHERE id = ?',
-                (nome, categoria, cpf, cnpj, dados_bancarios, professor_id)
-            )
-            db.commit()
-            db.close()
-            flash('Dados do professor atualizados com sucesso!', 'success')
-            return redirect(url_for('detalhes_professor', professor_id=professor_id))
-
+        db.execute(
+            'UPDATE professores SET nome = ?, categoria = ?, cpf = ?, cnpj = ?, dados_bancarios = ? WHERE id = ?',
+            (nome, categoria, cpf, cnpj, dados_bancarios, professor_id)
+        )
+        db.commit()
+        flash('Dados do professor atualizados com sucesso!', 'success')
+        db.close()
+        return redirect(url_for('detalhes_professor', professor_id=professor_id))
+    db.close()
     return render_template('editar_professor.html', professor=professor)
 
 @app.route('/professor/deletar/<int:professor_id>', methods=['POST'])
 def deletar_professor(professor_id):
     db = get_db()
-    # Adicionar lógica para apagar documentos associados primeiro, se desejado
     db.execute('DELETE FROM professores WHERE id = ?', (professor_id,))
     db.commit()
     db.close()
     flash('Professor apagado com sucesso.', 'success')
     return redirect(url_for('index'))
 
-# --- ROTAS DE FERRAMENTAS ---
+# --- ROTAS DE UPLOAD E VISUALIZAÇÃO DE FICHEIROS ---
+@app.route('/professor/<int:professor_id>')
+def detalhes_professor(professor_id):
+    db = get_db()
+    professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
+    db.close()
+    if professor is None: abort(404)
+    anos = [datetime.datetime.now().year + i for i in range(3)]
+    meses = [(m, datetime.date(2000, m, 1).strftime('%B').capitalize()) for m in range(1, 13)]
+    return render_template('professor_detalhes.html', professor=professor, meses=meses, anos=anos)
+
+@app.route('/professor/<int:professor_id>/<int:ano>/<int:mes>', methods=['GET', 'POST'])
+def mes_detalhes(professor_id, ano, mes):
+    db = get_db()
+    professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
+    if professor is None: abort(404)
+    nome_mes = datetime.date(ano, mes, 1).strftime('%B').capitalize()
+
+    if request.method == 'POST':
+        if not s3_client:
+            flash("Configuração de armazenamento na nuvem não encontrada.", "error")
+            return redirect(request.url)
+            
+        arquivos = {'NF': request.files.get('nota_fiscal'), 'Relatorio': request.files.get('relatorio'), 'Chamada': request.files.get('chamada')}
+        for tipo, arquivo in arquivos.items():
+            if arquivo and arquivo.filename != '':
+                filename_seguro = secure_filename(arquivo.filename)
+                nome_final_r2 = f"{professor_id}/{ano}/{mes}/{tipo}_{filename_seguro}"
+                try:
+                    s3_client.upload_fileobj(arquivo, BUCKET_NAME, nome_final_r2)
+                    db.execute('INSERT INTO documentos (professor_id, mes, ano, tipo_documento, caminho_arquivo) VALUES (?, ?, ?, ?, ?)', (professor_id, mes, ano, tipo, nome_final_r2))
+                except Exception as e:
+                    flash(f"Erro ao fazer upload: {e}", "error")
+        db.commit()
+        flash('Documentos enviados com sucesso!', 'success')
+        return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
+
+    docs_db = db.execute('SELECT * FROM documentos WHERE professor_id = ? AND mes = ? AND ano = ?', (professor_id, mes, ano)).fetchall()
+    documentos = {doc['tipo_documento']: doc for doc in docs_db}
+    db.close()
+    return render_template('mes_detalhes.html', professor=professor, mes_numero=mes, nome_mes=nome_mes, ano=ano, documentos=documentos)
+
+@app.route('/view/<path:filename>')
+def view_file(filename):
+    try:
+        url = s3_client.generate_presigned_url('get_object', Params={'Bucket': BUCKET_NAME, 'Key': filename}, ExpiresIn=300)
+        return redirect(url)
+    except Exception as e:
+        abort(404, description=f"Erro ao aceder ao ficheiro: {e}")
+
+@app.route('/documento/deletar/<int:doc_id>', methods=['POST'])
+def deletar_documento(doc_id):
+    db = get_db()
+    doc = db.execute('SELECT * FROM documentos WHERE id = ?', (doc_id,)).fetchone()
+    if doc:
+        try:
+            s3_client.delete_object(Bucket=BUCKET_NAME, Key=doc['caminho_arquivo'])
+        except Exception as e:
+            flash(f'Erro ao apagar o arquivo da nuvem: {e}', 'error')
+        db.execute('DELETE FROM documentos WHERE id = ?', (doc_id,))
+        db.commit()
+        flash('Documento apagado com sucesso.', 'success')
+    db.close()
+    return redirect(url_for('mes_detalhes', professor_id=doc['professor_id'], ano=doc['ano'], mes=doc['mes']))
+
+# --- FERRAMENTAS ---
 @app.route('/ferramentas')
 def ferramentas_pdf():
     return render_template('ferramentas.html')
@@ -127,27 +188,17 @@ def ferramentas_pdf():
 def juntar_pdf():
     if request.method == 'POST':
         files = request.files.getlist('arquivos_pdf')
-
         if len(files) < 2:
-            flash('Por favor, selecione pelo menos dois arquivos PDF para juntar.', 'error')
+            flash('Selecione pelo menos dois arquivos.', 'error')
             return redirect(request.url)
-
         merger = PdfWriter()
-        
-        for pdf_file in files:
-            if pdf_file and pdf_file.filename.lower().endswith('.pdf'):
-                merger.append(pdf_file)
-            else:
-                flash(f'O ficheiro "{pdf_file.filename}" não é um PDF e foi ignorado.', 'error')
-
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_filename = f"documento_juntado_{timestamp}.pdf"
-        output_path = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
-
-        merger.write(output_path)
+        for pdf in files:
+            merger.append(pdf)
+        output_io = BytesIO()
+        merger.write(output_io)
         merger.close()
-
-        return send_from_directory(app.config['UPLOAD_FOLDER'], output_filename, as_attachment=True)
+        output_io.seek(0)
+        return send_file(output_io, as_attachment=True, download_name='documento_juntado.pdf', mimetype='application/pdf')
     return render_template('juntar_pdf.html')
 
 @app.route('/ferramentas/converter-word', methods=['GET', 'POST'])
@@ -679,7 +730,6 @@ def api_deletar_evento(evento_id):
     return jsonify({'status': 'sucesso', 'mensagem': 'Evento apagado.'})
 
 if __name__ == '__main__':
-    # ... (código existente)
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
     app.run(debug=True)

@@ -80,7 +80,7 @@
                     <label>1. Nota Fiscal</label>
                     <div class="status status-enviado">
                         Status: Enviado &#10004;
-                        <a href="{{ url_for('uploaded_file', filename=documentos.NF['caminho_arquivo']) }}" target="_blank">Visualizar</a>
+                        <a href="{{ url_for('view_file', filename=documentos.NF['caminho_arquivo']) }}" target="_blank">Visualizar</a>
                         <form action="{{ url_for('deletar_documento', doc_id=documentos.NF['id']) }}" method="post" style="display: inline;">
                             <button type="submit" class="delete-btn">Apagar</button>
                         </form>
@@ -98,7 +98,7 @@
                     <label>2. Relatório de Atividades</label>
                     <div class="status status-enviado">
                         Status: Enviado &#10004;
-                        <a href="{{ url_for('uploaded_file', filename=documentos.Relatorio['caminho_arquivo']) }}" target="_blank">Visualizar</a>
+                       <a href="{{ url_for('view_file', filename=documentos.Relatorio['caminho_arquivo']) }}" target="_blank">Visualizar</a>
                         <form action="{{ url_for('deletar_documento', doc_id=documentos.Relatorio['id']) }}" method="post" style="display: inline;">
                             <button type="submit" class="delete-btn">Apagar</button>
                         </form>
@@ -111,7 +111,7 @@
                     <label>3. Lista de Chamada</label>
                     <div class="status status-enviado">
                         Status: Enviado &#10004;
-                        <a href="{{ url_for('uploaded_file', filename=documentos.Chamada['caminho_arquivo']) }}" target="_blank">Visualizar</a>
+                        <a href="{{ url_for('view_file', filename=documentos.Chamada['caminho_arquivo']) }}" target="_blank">Visualizar</a>
                         <form action="{{ url_for('deletar_documento', doc_id=documentos.Chamada['id']) }}" method="post" style="display: inline;">
                             <button type="submit" class="delete-btn">Apagar</button>
                         </form>
