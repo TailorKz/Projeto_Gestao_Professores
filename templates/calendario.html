@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Calendário de Eventos</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #444; }
+        .back-link { display: inline-block; margin-bottom: 20px; }
+        .calendario-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .calendario-nav h2 { border: none; margin: 0; }
+        .nav-btn { text-decoration: none; padding: 8px 15px; background-color: #007bff; color: white; border-radius: 5px; }
+        .calendario { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .calendario th { padding: 10px; background-color: #f2f2f2; }
+        .calendario td {
+            height: 120px; border: 1px solid #ddd; padding: 8px; vertical-align: top;
+            transition: background-color 0.2s;
+        }
+        .calendario .dia { font-size: 1.2em; font-weight: bold; }
+        .calendario .outro-mes { color: #ccc; }
+        .calendario .hoje .dia { color: #007bff; }
+        .calendario .tem-evento { background-color: #d1ecf1; }
+        .calendario td:not(.outro-mes):hover { background-color: #e9ecef; cursor: pointer; }
+        .eventos-lista { list-style-type: none; padding-left: 0; margin-top: 5px; font-size: 0.8em; }
+        .eventos-lista li { 
+            white-space: normal;
+            word-wrap: break-word;
+        }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; display: none; justify-content: center; align-items: center; }
+        .modal { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 15px; }
+        .modal-header h3 { margin: 0; }
+        .modal-close-btn { background: none; border: none; font-size: 1.5em; cursor: pointer; }
+        #lista-eventos-modal li { display: flex; justify-content: space-between; align-items: center; padding: 5px; border-bottom: 1px solid #eee; }
+        .btn-apagar-evento { background-color: #dc3545; color: white; border: none; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+        .form-group { margin-top: 15px; }
+        .form-group input { width: 100%; padding: 8px; box-sizing: border-box; margin-top: 5px; }
+        .btn-adicionar { background-color: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('ferramentas_pdf') }}" class="back-link">&larr; Voltar às Ferramentas</a>
+        <h1>Calendário de Eventos</h1>
+        <div class="calendario-nav">
+            <a href="{{ url_for('calendario', ano=mes_anterior.year, mes=mes_anterior.month) }}" class="nav-btn">&larr; Anterior</a>
+            <h2>{{ nome_mes }} de {{ ano }}</h2>
+            <a href="{{ url_for('calendario', ano=mes_seguinte.year, mes=mes_seguinte.month) }}" class="nav-btn">Próximo &rarr;</a>
+        </div>
+
+        <table class="calendario">
+            <thead><tr><th>Segunda</th><th>Terça</th><th>Quarta</th><th>Quinta</th><th>Sexta</th><th>Sábado</th><th>Domingo</th></tr></thead>
+            <tbody>
+                {% for semana in semanas %}
+                <tr>
+                    {% for dia in semana %}
+                        {% set dia_str = dia.strftime('%Y-%m-%d') %}
+                        <td data-data="{{ dia_str }}" class="{{ 'outro-mes' if dia.month != mes else '' }} {{ 'hoje' if dia == hoje else '' }} {{ 'tem-evento' if dia_str in eventos_mapa else '' }}">
+                            <div class="dia">{{ dia.day }}</div>
+                            <ul class="eventos-lista">
+                                {% for data, eventos in eventos_mapa.items() if data == dia_str %}
+                                    {% for evento in eventos %}
+                                        <li><strong>{{ evento.horario or '' }}</strong> {{ evento.descricao }}</li>
+                                    {% endfor %}
+                                {% endfor %}
+                            </ul>
+                        </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="modal-overlay" id="evento-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-titulo">Eventos do Dia</h3>
+                <button class="modal-close-btn" onclick="fecharModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <ul id="lista-eventos-modal" class="eventos-lista">
+                    </ul>
+                <hr>
+                <h4>Adicionar Novo Lembrete</h4>
+                <form id="form-novo-evento">
+                    <input type="hidden" id="modal-data-selecionada">
+                    <div class="form-group">
+                        <label for="evento-horario">Horário (opcional)</label>
+                        <input type="time" id="evento-horario">
+                    </div>
+                    <div class="form-group">
+                        <label for="evento-descricao">Descrição</label>
+                        <input type="text" id="evento-descricao" required>
+                    </div>
+                    <button type="submit" class="btn-adicionar">Adicionar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const modal = document.getElementById('evento-modal');
+        const modalTitulo = document.getElementById('modal-titulo');
+        const modalDataInput = document.getElementById('modal-data-selecionada');
+        const formNovoEvento = document.getElementById('form-novo-evento');
+
+        // Adicionar listener de clique ao calendário
+        document.querySelector('.calendario tbody').addEventListener('click', (event) => {
+            const td = event.target.closest('td');
+            if (td && !td.classList.contains('outro-mes')) {
+                const data = td.dataset.data;
+                abrirModal(data);
+            }
+        });
+
+        // Abrir o modal e buscar os eventos do dia
+        async function abrirModal(data) {
+            modalDataInput.value = data;
+            const dataFormatada = new Date(data + 'T00:00:00').toLocaleDateString('pt-BR');
+            modalTitulo.innerText = `Eventos de ${dataFormatada}`;
+            
+            const response = await fetch(`/api/eventos/${data}`);
+            const eventos = await response.json();
+            
+            const listaEventosModal = document.getElementById('lista-eventos-modal');
+            listaEventosModal.innerHTML = ''; // Limpa a lista antiga
+            if (eventos.length > 0) {
+                eventos.forEach(evento => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span><strong>${evento.horario || 'Dia todo'}</strong> - ${evento.descricao}</span>
+                        <button class="btn-apagar-evento" onclick="apagarEvento(${evento.id})">&times;</button>
+                    `;
+                    listaEventosModal.appendChild(li);
+                });
+            } else {
+                listaEventosModal.innerHTML = '<li>Nenhum lembrete para este dia.</li>';
+            }
+            modal.style.display = 'flex';
+        }
+
+        function fecharModal() {
+            modal.style.display = 'none';
+        }
+
+        // Adicionar um novo evento
+        formNovoEvento.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const data = modalDataInput.value;
+            const horario = document.getElementById('evento-horario').value;
+            const descricao = document.getElementById('evento-descricao').value;
+
+            const response = await fetch('/api/eventos/adicionar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data, horario, descricao })
+            });
+
+            if (response.ok) {
+                location.reload(); // Recarrega a página para mostrar o novo evento
+            } else {
+                alert('Erro ao adicionar evento.');
+            }
+        });
+        async function apagarEvento(eventoId) {
+            if (confirm('Tem a certeza que quer apagar este lembrete?')) {
+                const response = await fetch(`/api/eventos/deletar/${eventoId}`, { method: 'POST' });
+                if (response.ok) {
+                    location.reload(); // Recarrega a página para remover o evento
+                } else {
+                    alert('Erro ao apagar evento.');
+                }
+            }
+        }
+    </script>
+</body>
+</html>

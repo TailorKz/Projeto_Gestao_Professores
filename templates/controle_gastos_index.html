@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Controle de Gastos</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .back-link { display: inline-block; margin-bottom: 20px; }
+        .categoria-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px; }
+        .categoria-link { display: block; padding: 40px 20px; border-radius: 8px; text-decoration: none; color: white; font-size: 1.5em; text-align: center; transition: transform 0.2s; }
+        .categoria-link:hover { transform: scale(1.05); }
+        .cultura { background-color: #007bff; }
+        .esporte { background-color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('ferramentas_pdf') }}" class="back-link">&larr; Voltar às Ferramentas</a>
+        <h1>Controle de Gastos</h1>
+        <p>Selecione a categoria para ver as parcelas e gerir os gastos.</p>
+        
+        <div class="categoria-grid">
+            <a href="{{ url_for('gastos_por_categoria', categoria='Cultura') }}" class="categoria-link cultura">Cultura</a>
+            <a href="{{ url_for('gastos_por_categoria', categoria='Esporte') }}" class="categoria-link esporte">Esporte</a>
+        </div>
+    </div>
+</body>
+</html>

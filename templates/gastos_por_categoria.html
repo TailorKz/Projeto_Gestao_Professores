@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Parcelas de {{ categoria }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .back-link { display: inline-block; margin-bottom: 20px; }
+        .parcela-link { display: block; padding: 10px; margin-bottom: 5px; background-color: #f0f0f0; border-radius: 5px; text-decoration: none; color: #333; transition: background-color 0.2s; }
+        .parcela-link:hover { background-color: #e0e0e0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('controle_gastos_index') }}" class="back-link">&larr; Mudar Categoria</a>
+        <h1>Parcelas de {{ categoria }}</h1>
+
+        {% for ano in anos %}
+            <h2>{{ ano }}</h2>
+            {% for num, desc in parcelas.items() %}
+                <a href="{{ url_for('parcela_gastos', categoria=categoria, ano=ano, parcela=num) }}" class="parcela-link">
+                    <strong>Parcela {{ num }}:</strong> {{ desc }}
+                </a>
+            {% endfor %}
+        {% endfor %}
+    </div>
+</body>
+</html>

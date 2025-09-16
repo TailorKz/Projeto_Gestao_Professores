@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ acao }} Empréstimo</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: .5rem; font-weight: bold; }
+        input[type="text"], input[type="date"], textarea { width: 100%; padding: .5rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        .back-link { display: inline-block; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('emprestimos') }}" class="back-link">&larr; Voltar</a>
+        <h1>{{ acao }} Empréstimo</h1>
+        
+        <form method="post">
+            <div class="form-group">
+                <label for="item">Item / Instrumento</label>
+                <input type="text" name="item" id="item" value="{{ emprestimo['item'] if emprestimo else '' }}" required>
+            </div>
+            <div class="form-group">
+                <label for="responsavel">Responsável</label>
+                <input type="text" name="responsavel" id="responsavel" value="{{ emprestimo['responsavel'] if emprestimo else '' }}" required>
+            </div>
+            <div class="form-group">
+                <label for="data_retirada">Data de Retirada</label>
+                <input type="date" name="data_retirada" id="data_retirada" value="{{ emprestimo['data_retirada'] if emprestimo else data_hoje }}" required>
+            </div>
+            <div class="form-group">
+                <label for="data_devolucao">Data de Devolução (deixar em branco se ainda não devolvido)</label>
+                <input type="date" name="data_devolucao" id="data_devolucao" value="{{ emprestimo['data_devolucao'] if emprestimo else '' }}">
+            </div>
+            <div class="form-group">
+                <label for="observacoes">Observações</label>
+                <textarea name="observacoes" id="observacoes" rows="3">{{ emprestimo['observacoes'] if emprestimo else '' }}</textarea>
+            </div>
+            <button type="submit">Salvar</button>
+        </form>
+    </div>
+</body>
+</html>

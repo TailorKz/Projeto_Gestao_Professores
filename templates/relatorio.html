@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Gerar Relatório</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: .5rem; font-weight: bold; }
+        select, .radio-group { width: 100%; padding: .5rem; border: 1px solid #ccc; border-radius: 4px; }
+        .radio-group label { display: inline-block; margin-right: 15px; font-weight: normal;}
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px; font-size: 1.1em; }
+        .back-link { display: inline-block; margin-bottom: 20px; }
+        .flash-message { padding: 15px; margin-bottom: 20px; border-radius: 5px; color: #fff; background-color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('index') }}" class="back-link">&larr; Voltar ao Início</a>
+        <h1>Gerador de Relatórios</h1>
+        <p>Selecione as opções abaixo para gerar o seu relatório personalizado.</p>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="post">
+            <div class="form-group">
+                <label>Tipo de Período</label>
+                <div class="radio-group">
+                    <input type="radio" id="mensal" name="tipo_periodo" value="mensal" checked onchange="toggleMes()">
+                    <label for="mensal">Mensal</label>
+                    <input type="radio" id="anual" name="tipo_periodo" value="anual" onchange="toggleMes()">
+                    <label for="anual">Anual</label>
+                </div>
+            </div>
+
+            <div class="form-group" id="campo-mes">
+                <label for="mes">Mês</label>
+                <select name="mes" id="mes">
+                    {% for mes_num, mes_nome in meses %}
+                        <option value="{{ mes_num }}">{{ mes_nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="ano">Ano</label>
+                <select name="ano" id="ano" required>
+                    {% for ano in anos %}
+                        <option value="{{ ano }}">{{ ano }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="professor_id">Professor</label>
+                <select name="professor_id" id="professor_id">
+                    <option value="todos">Todos os Professores</option>
+                    {% for professor in professores %}
+                        <option value="{{ professor.id }}">{{ professor.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Formato do Ficheiro</label>
+                <div class="radio-group">
+                    <input type="radio" id="excel" name="formato" value="excel" checked>
+                    <label for="excel">Excel</label>
+                    <input type="radio" id="word" name="formato" value="word">
+                    <label for="word">Word</label>
+                </div>
+            </div>
+
+            <button type="submit">Gerar Relatório</button>
+        </form>
+    </div>
+
+    <script>
+        function toggleMes() {
+            var campoMes = document.getElementById('campo-mes');
+            if (document.getElementById('anual').checked) {
+                campoMes.style.display = 'none';
+            } else {
+                campoMes.style.display = 'block';
+            }
+        }
+        // Executa a função quando a página carrega para garantir o estado inicial correto
+        document.addEventListener('DOMContentLoaded', toggleMes);
+    </script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Adicionar Professor</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: .5rem; font-weight: bold; }
+        input[type="text"], select { width: 100%; padding: .5rem; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        .back-link { display: inline-block; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('index') }}" class="back-link">&larr; Voltar</a>
+        <h1>Adicionar Novo Professor</h1>
+        <form method="post">
+            <div class="form-group">
+                <label for="nome">Nome Completo</label>
+                <input type="text" name="nome" id="nome" required>
+            </div>
+            <div class="form-group">
+                <label for="categoria">Categoria</label>
+                <select name="categoria" id="categoria" required>
+                    <option value="Cultura">Cultura</option>
+                    <option value="Esporte">Esporte</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="cpf">CPF</label>
+                <input type="text" name="cpf" id="cpf">
+            </div>
+            <div class="form-group">
+                <label for="cnpj">CNPJ</label>
+                <input type="text" name="cnpj" id="cnpj">
+            </div>
+            <div class="form-group">
+                <label for="dados_bancarios">Dados Bancários</label>
+                <input type="text" name="dados_bancarios" id="dados_bancarios">
+            </div>
+            <button type="submit">Adicionar Professor</button>
+        </form>
+    </div>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Juntar PDFs</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .back-link { display: inline-block; margin-bottom: 20px; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px; }
+        input[type="file"] { margin-top: 10px; }
+        .flash-message { padding: 15px; margin-bottom: 20px; border-radius: 5px; color: #fff; }
+        .flash-error { background-color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('ferramentas_pdf') }}" class="back-link">&larr; Voltar às Ferramentas</a>
+        <h1>Juntar Arquivos PDF</h1>
+        <p>Selecione dois ou mais ficheiros PDF. Eles serão juntados na ordem em que você os selecionou. (Segure CTRL e selecione os arquivos pdf).</p>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="post" enctype="multipart/form-data">
+            <div>
+                <label for="arquivos_pdf"><strong>Selecione os ficheiros:</strong></label><br>
+                <input type="file" name="arquivos_pdf" id="arquivos_pdf" multiple required>
+            </div>
+            <button type="submit">Juntar PDFs</button>
+        </form>
+    </div>
+</body>
+</html>

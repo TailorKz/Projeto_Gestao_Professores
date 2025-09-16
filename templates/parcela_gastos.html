@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Gastos - {{ categoria }} Parcela {{ parcela }}/{{ ano }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .back-link { display: inline-block; margin-bottom: 20px; }
+
+
+        #valor-inicial-input {
+            background-color: #e9ecef;
+            font-weight: bold;
+            font-size: 1em;
+        }
+        .bloco-de-notas {
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px 20px;
+            margin-top: 20px;
+        }
+        .cabecalho-bloco {
+            display: flex;
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .cabecalho-bloco .coluna-descricao, .cabecalho-bloco .coluna-valor {
+            flex: 1;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .linha-gasto {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .coluna-descricao, .coluna-valor {
+            flex: 1;
+        }
+        .coluna-valor {
+            display: flex;
+            align-items: center;
+        }
+
+        .linha-gasto input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box; /* Garante que o padding não quebre o layout */
+            border: none;
+            border-bottom: 1px solid #eee;
+            background-color: transparent;
+            font-size: 1em;
+            line-height: 1.5;
+        }
+        .linha-gasto input:focus { outline: none; border-bottom: 1px solid #007bff; }
+        .btn-apagar {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 1.2em;
+            margin-left: 10px;
+        }
+        .summary { margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px; font-size: 1.2em; text-align: right; }
+        .summary p { margin: 5px 0; }
+        #saldo.negativo { color: red; font-weight: bold; }
+        #valor-inicial-input { font-weight: bold; text-align: right; border: none; background-color: #dde2e6; padding: 5px; border-radius: 4px; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px; }
+        button[type="submit"] { background-color: #014996; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('gastos_por_categoria', categoria=categoria) }}" class="back-link">&larr; Voltar para as Parcelas de {{ categoria }}</a>
+        <h1>Controle de Gastos: {{ categoria }} - Parcela {{ parcela }} / {{ ano }}</h1>
+
+        <form method="post" id="form-gastos">
+            <div class="summary">
+                <p>
+                    Valor Inicial: R$ 
+                    <input type="text" id="valor-inicial-input" name="valor_inicial" value="{{ valor_inicial | formatar_valor }}">
+                </p>
+                <p>Total Gasto: <strong id="total-gasto">R$ 0,00</strong></p>
+                <p>Saldo Disponível: <strong id="saldo">R$ 0,00</strong></p>
+            </div>
+
+            <div class="bloco-de-notas">
+                <div class="cabecalho-bloco">
+                    <div class="coluna-descricao">Descrição</div>
+                    <div class="coluna-valor">Valor (R$)</div>
+                </div>
+                <div id="lista-gastos">
+                    {% for gasto in gastos %}
+                    <div class="linha-gasto" data-id="{{ gasto.id }}">
+                        <div class="coluna-descricao">
+                            <input type="text" name="descricao[]" placeholder="Descreva o gasto..." value="{{ gasto.descricao }}">
+                        </div>
+                        <div class="coluna-valor">
+                            <input type="text" name="valor[]" class="valor" placeholder="0,00" value="{{ gasto.valor | formatar_valor }}">
+                            <button type="button" class="btn-apagar" onclick="apagarGasto({{ gasto.id }})">&times;</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <button type="button" onclick="adicionarLinha(true)">+ Adicionar Gasto</button>
+            <button type="submit">Salvar Gastos</button>
+        </form>
+    </div>
+
+    <script>
+        function apagarGasto(gastoId) {
+            if (confirm('Tem a certeza que quer apagar este gasto?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/gastos/deletar/${gastoId}`;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
+        function apagarLinhaNova(btn) {
+            btn.closest('.linha-gasto').remove();
+            calcularTotais();
+        }
+
+        function adicionarLinha(focus) {
+            focus = focus || false;
+            const listaGastos = document.getElementById('lista-gastos');
+
+            const novaLinha = document.createElement('div');
+            novaLinha.className = 'linha-gasto';
+
+            const divDescricao = document.createElement('div');
+            divDescricao.className = 'coluna-descricao';
+            const novaDescricaoInput = document.createElement('input');
+            novaDescricaoInput.type = 'text';
+            novaDescricaoInput.name = 'descricao[]';
+            novaDescricaoInput.placeholder = 'Descreva o gasto...';
+            divDescricao.appendChild(novaDescricaoInput);
+
+            const divValor = document.createElement('div');
+            divValor.className = 'coluna-valor';
+            const novoValorInput = document.createElement('input');
+            novoValorInput.type = 'text';
+            novoValorInput.name = 'valor[]';
+            novoValorInput.className = 'valor';
+            novoValorInput.placeholder = '0,00';
+            const btnApagar = document.createElement('button');
+            btnApagar.type = 'button';
+            btnApagar.className = 'btn-apagar';
+            btnApagar.innerHTML = '&times;';
+            btnApagar.onclick = function() { apagarLinhaNova(btnApagar); };
+            divValor.appendChild(novoValorInput);
+            divValor.appendChild(btnApagar);
+
+            novaLinha.appendChild(divDescricao);
+            novaLinha.appendChild(divValor);
+            listaGastos.appendChild(novaLinha);
+            
+            adicionarListeners();
+
+            if(focus){
+                novaDescricaoInput.focus();
+            }
+        }
+
+        function calcularTotais() {
+            const valorInicialStr = document.getElementById('valor-inicial-input').value.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
+            const valorInicial = parseFloat(valorInicialStr) || 0;
+
+            let totalGasto = 0;
+            const camposValor = document.querySelectorAll('.valor');
+            camposValor.forEach(function(campo) {
+                const valorStr = campo.value.trim().replace(/\./g, '').replace(',', '.');
+                if (valorStr) {
+                    totalGasto += parseFloat(valorStr) || 0;
+                }
+            });
+
+            const saldo = valorInicial - totalGasto;
+            const formatador = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+            
+            document.getElementById('total-gasto').innerText = formatador.format(totalGasto);
+            const saldoEl = document.getElementById('saldo');
+            saldoEl.innerText = formatador.format(saldo);
+            saldoEl.classList.toggle('negativo', saldo < 0);
+        }
+
+        function adicionarListeners() {
+            document.getElementById('valor-inicial-input').addEventListener('input', calcularTotais);
+            const inputs = document.querySelectorAll('#lista-gastos input');
+            inputs.forEach(function(input) {
+                input.removeEventListener('input', handleInput);
+                input.addEventListener('input', handleInput);
+            });
+        }
+
+        function handleInput(event) {
+            calcularTotais();
+            
+            const linhas = document.querySelectorAll('#lista-gastos .linha-gasto');
+            if (linhas.length > 0) {
+                const ultimaLinha = linhas[linhas.length - 1];
+                const ultimaDescricao = ultimaLinha.querySelector('input[name="descricao[]"]');
+                const ultimoValor = ultimaLinha.querySelector('input[name="valor[]"]');
+
+                if (ultimaDescricao.value.trim() !== '' && ultimoValor.value.trim() !== '') {
+                    adicionarLinha();
+                }
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            adicionarListeners();
+            calcularTotais();
+            if (document.querySelectorAll('.valor').length === 0) {
+                adicionarLinha();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,685 @@
+import sqlite3
+import locale
+from flask import Flask, render_template, abort, url_for, request, redirect, flash, send_from_directory, jsonify
+import datetime
+import os
+from werkzeug.utils import secure_filename
+from ocr_processor import processar_nf
+from pypdf import PdfWriter
+from docx2pdf import convert
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from io import BytesIO
+from docx import Document
+from docx.shared import Pt
+import calendar
+
+try:
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')
+    except locale.Error:
+        print("AVISO: Locale 'pt_BR.UTF-8' ou 'Portuguese_Brazil.1252' não encontrado.")
+
+app = Flask(__name__)
+
+DATABASE = 'gestor.db'
+UPLOAD_FOLDER = 'uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['SECRET_KEY'] = 'uma-chave-secreta-muito-dificil'
+
+@app.template_filter('formatar_valor')
+def formatar_valor(value):
+    if value is None:
+        return "0,00"
+    try:
+        return locale.format_string('%.2f', float(value), grouping=True)
+    except (ValueError, TypeError):
+        return value
+
+def get_db():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+@app.route('/')
+def index():
+    db = get_db()
+    professores_db = db.execute('SELECT * FROM professores ORDER BY nome').fetchall()
+    db.close()
+    professores_cultura = [p for p in professores_db if p['categoria'] == 'Cultura']
+    professores_esporte = [p for p in professores_db if p['categoria'] == 'Esporte']
+    return render_template('index.html', cultura=professores_cultura, esporte=professores_esporte)
+
+# --- ROTAS DE GESTÃO DE PROFESSORES
+@app.route('/professor/adicionar', methods=['GET', 'POST'])
+def adicionar_professor():
+    if request.method == 'POST':
+        nome = request.form['nome']
+        categoria = request.form['categoria']
+        cpf = request.form['cpf'] or None
+        cnpj = request.form['cnpj'] or None
+        dados_bancarios = request.form['dados_bancarios'] or None
+
+        if not nome or not categoria:
+            flash('Nome e Categoria são campos obrigatórios.', 'error')
+        else:
+            db = get_db()
+            db.execute(
+                'INSERT INTO professores (nome, categoria, cpf, cnpj, dados_bancarios) VALUES (?, ?, ?, ?, ?)',
+                (nome, categoria, cpf, cnpj, dados_bancarios)
+            )
+            db.commit()
+            db.close()
+            flash('Professor adicionado com sucesso!', 'success')
+            return redirect(url_for('index'))
+
+    return render_template('adicionar_professor.html')
+
+@app.route('/professor/editar/<int:professor_id>', methods=['GET', 'POST'])
+def editar_professor(professor_id):
+    db = get_db()
+    professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
+    db.close()
+
+    if professor is None:
+        abort(404)
+
+    if request.method == 'POST':
+        nome = request.form['nome']
+        categoria = request.form['categoria']
+        cpf = request.form['cpf'] or None
+        cnpj = request.form['cnpj'] or None
+        dados_bancarios = request.form['dados_bancarios'] or None
+
+        if not nome or not categoria:
+            flash('Nome e Categoria são campos obrigatórios.', 'error')
+        else:
+            db = get_db()
+            db.execute(
+                'UPDATE professores SET nome = ?, categoria = ?, cpf = ?, cnpj = ?, dados_bancarios = ? WHERE id = ?',
+                (nome, categoria, cpf, cnpj, dados_bancarios, professor_id)
+            )
+            db.commit()
+            db.close()
+            flash('Dados do professor atualizados com sucesso!', 'success')
+            return redirect(url_for('detalhes_professor', professor_id=professor_id))
+
+    return render_template('editar_professor.html', professor=professor)
+
+@app.route('/professor/deletar/<int:professor_id>', methods=['POST'])
+def deletar_professor(professor_id):
+    db = get_db()
+    # Adicionar lógica para apagar documentos associados primeiro, se desejado
+    db.execute('DELETE FROM professores WHERE id = ?', (professor_id,))
+    db.commit()
+    db.close()
+    flash('Professor apagado com sucesso.', 'success')
+    return redirect(url_for('index'))
+
+# --- ROTAS DE FERRAMENTAS ---
+@app.route('/ferramentas')
+def ferramentas_pdf():
+    return render_template('ferramentas.html')
+
+@app.route('/ferramentas/juntar-pdf', methods=['GET', 'POST'])
+def juntar_pdf():
+    if request.method == 'POST':
+        files = request.files.getlist('arquivos_pdf')
+
+        if len(files) < 2:
+            flash('Por favor, selecione pelo menos dois arquivos PDF para juntar.', 'error')
+            return redirect(request.url)
+
+        merger = PdfWriter()
+        
+        for pdf_file in files:
+            if pdf_file and pdf_file.filename.lower().endswith('.pdf'):
+                merger.append(pdf_file)
+            else:
+                flash(f'O ficheiro "{pdf_file.filename}" não é um PDF e foi ignorado.', 'error')
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"documento_juntado_{timestamp}.pdf"
+        output_path = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+
+        merger.write(output_path)
+        merger.close()
+
+        return send_from_directory(app.config['UPLOAD_FOLDER'], output_filename, as_attachment=True)
+    return render_template('juntar_pdf.html')
+
+@app.route('/ferramentas/converter-word', methods=['GET', 'POST'])
+def converter_word():
+    if request.method == 'POST':
+        word_file = request.files.get('arquivo_word')
+
+        if not word_file or word_file.filename == '':
+            flash('Por favor, selecione um arquivo Word.', 'error')
+            return redirect(request.url)
+
+        if word_file and (word_file.filename.lower().endswith('.docx') or word_file.filename.lower().endswith('.doc')):
+            filename_seguro = secure_filename(word_file.filename)
+            input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename_seguro)
+            word_file.save(input_path)
+
+            output_filename = os.path.splitext(filename_seguro)[0] + '.pdf'
+            output_path = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+            try:
+                convert(input_path, output_path)
+                os.remove(input_path)
+                return send_from_directory(app.config['UPLOAD_FOLDER'], output_filename, as_attachment=True)
+            except Exception as e:
+                flash(f'Ocorreu um erro durante a conversão: {e}', 'error')
+                if os.path.exists(input_path):
+                    os.remove(input_path)
+                return redirect(request.url)
+        else:
+            flash('Formato de ficheiro inválido. Por favor, envie um ficheiro .doc ou .docx.', 'error')
+            return redirect(request.url)
+
+    return render_template('converter_word.html')
+
+@app.route('/controle-gastos')
+def controle_gastos_index():
+    # Esta página agora só mostra a escolha entre Cultura e Esporte
+    return render_template('controle_gastos_index.html')
+
+@app.route('/controle-gastos/<categoria>')
+def gastos_por_categoria(categoria):
+    if categoria not in ['Cultura', 'Esporte']:
+        abort(404)
+
+    ano_atual = datetime.datetime.now().year
+    anos = [ano_atual + i for i in range(3)]
+    parcelas = {
+        1: "Fevereiro, Março e Abril",
+        2: "Maio e Junho",
+        3: "Julho e Agosto",
+        4: "Setembro e Outubro",
+        5: "Novembro e Dezembro"
+    }
+    return render_template('gastos_por_categoria.html', categoria=categoria, anos=anos, parcelas=parcelas)
+
+
+@app.route('/controle-gastos/<categoria>/<int:ano>/<int:parcela>', methods=['GET', 'POST'])
+def parcela_gastos(categoria, ano, parcela):
+    db = get_db()
+
+    if request.method == 'POST':
+        # --- LÓGICA PARA SALVAR O VALOR INICIAL ---
+        valor_inicial_str = request.form.get('valor_inicial').replace('R$', '').strip().replace('.', '').replace(',', '.')
+        valor_inicial_float = float(valor_inicial_str)
+
+        # Verifica se já existe um registo para esta parcela
+        db.execute(
+            'INSERT OR REPLACE INTO parcelas (categoria, ano, parcela, valor_inicial) VALUES (?, ?, ?, ?)',
+            (categoria, ano, parcela, valor_inicial_float)
+        )
+
+        # --- Lógica para salvar os gastos
+        db.execute('DELETE FROM gastos WHERE categoria = ? AND ano = ? AND parcela = ?', (categoria, ano, parcela))
+        descricoes = request.form.getlist('descricao[]')
+        valores = request.form.getlist('valor[]')
+
+        for i in range(len(descricoes)):
+            if descricoes[i] and valores[i]:
+                try:
+                    valor_float = float(valores[i].replace('.', '').replace(',', '.'))
+                    db.execute(
+                        'INSERT INTO gastos (categoria, ano, parcela, descricao, valor) VALUES (?, ?, ?, ?, ?)',
+                        (categoria, ano, parcela, descricoes[i], valor_float)
+                    )
+                except ValueError:
+                    flash(f'Valor inválido "{valores[i]}" ignorado.', 'error')
+        
+        db.commit()
+        db.close()
+        flash('Gastos salvos com sucesso!', 'success')
+        return redirect(url_for('parcela_gastos', categoria=categoria, ano=ano, parcela=parcela))
+
+    # --- LÓGICA GET ATUALIZADA PARA LER O VALOR INICIAL DO BANCO DE DADOS ---
+    parcela_info = db.execute(
+        'SELECT valor_inicial FROM parcelas WHERE categoria = ? AND ano = ? AND parcela = ?',
+        (categoria, ano, parcela)
+    ).fetchone()
+
+    if parcela_info:
+        valor_inicial = parcela_info['valor_inicial']
+    else:
+        valores_padrao = {"Cultura": 72524.62, "Esporte": 31389.00}
+        valor_inicial = valores_padrao.get(categoria, 0)
+
+    gastos = db.execute(
+        'SELECT * FROM gastos WHERE categoria = ? AND ano = ? AND parcela = ? ORDER BY id',
+        (categoria, ano, parcela)
+    ).fetchall()
+    db.close()
+
+    total_gasto = sum(g['valor'] for g in gastos)
+    saldo = valor_inicial - total_gasto
+
+    return render_template('parcela_gastos.html', categoria=categoria, ano=ano, parcela=parcela,
+                           valor_inicial=valor_inicial, gastos=gastos, total_gasto=total_gasto, saldo=saldo)
+
+@app.route('/professor/<int:professor_id>')
+def detalhes_professor(professor_id):
+
+    db = get_db()
+    professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
+    db.close()
+    if professor is None:
+        abort(404)
+    
+    ano_atual = datetime.datetime.now().year
+    anos = [ano_atual + i for i in range(3)] 
+
+    meses = [(m, datetime.date(2000, m, 1).strftime('%B').capitalize()) for m in range(1, 13)]
+    
+    return render_template('professor_detalhes.html', professor=professor, meses=meses, anos=anos)
+
+
+@app.route('/professor/<int:professor_id>/<int:ano>/<int:mes>', methods=['GET', 'POST'])
+def mes_detalhes(professor_id, ano, mes):
+
+    db = get_db()
+    professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
+    
+    if professor is None:
+        db.close()
+        abort(404)
+        
+    nome_mes = datetime.date(ano, mes, 1).strftime('%B').capitalize()
+
+    if request.method == 'POST':
+        arquivos = {
+            'NF': request.files.get('nota_fiscal'),
+            'Relatorio': request.files.get('relatorio'),
+            'Chamada': request.files.get('chamada')
+        }
+
+        for tipo, arquivo in arquivos.items():
+            if arquivo and arquivo.filename != '':
+                filename_seguro = secure_filename(arquivo.filename)
+                nome_final = f"{professor_id}_{ano}_{mes}_{tipo}_{filename_seguro}"
+                caminho_salvar = os.path.join(app.config['UPLOAD_FOLDER'], nome_final)
+                arquivo.save(caminho_salvar)
+                
+                dados_ocr = {}
+                if tipo == 'NF':
+                    dados_ocr = processar_nf(caminho_salvar)
+
+                db.execute(
+                    '''INSERT INTO documentos (professor_id, mes, ano, tipo_documento, caminho_arquivo, 
+                                              nf_numero, nf_data, nf_valor)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (
+                        professor_id, mes, ano, tipo, nome_final,
+                        dados_ocr.get('numero'),
+                        dados_ocr.get('data'),
+                        dados_ocr.get('valor')
+                    )
+                )
+        
+        db.commit()
+        db.close()
+        flash('Documentos enviados e processados com sucesso!', 'success')
+        return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
+
+    docs_db = db.execute(
+        'SELECT * FROM documentos WHERE professor_id = ? AND mes = ? AND ano = ?',
+        (professor_id, mes, ano)
+    ).fetchall()
+    db.close()
+    documentos = {doc['tipo_documento']: doc for doc in docs_db}
+
+    return render_template('mes_detalhes.html', professor=professor, mes_numero=mes, nome_mes=nome_mes, ano=ano, documentos=documentos)
+
+
+@app.route('/uploads/<path:filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@app.route('/documento/deletar/<int:doc_id>', methods=['POST'])
+def deletar_documento(doc_id):
+    db = get_db()
+    doc = db.execute('SELECT * FROM documentos WHERE id = ?', (doc_id,)).fetchone()
+    
+    if doc:
+        try:
+            caminho_arquivo = os.path.join(app.config['UPLOAD_FOLDER'], doc['caminho_arquivo'])
+            if os.path.exists(caminho_arquivo):
+                os.remove(caminho_arquivo)
+        except Exception as e:
+            print(f"Erro ao deletar arquivo: {e}")
+            flash('Erro ao tentar apagar o arquivo do sistema.', 'error')
+
+        db.execute('DELETE FROM documentos WHERE id = ?', (doc_id,))
+        db.commit()
+        flash('Documento apagado com sucesso. Você pode enviar um novo.', 'success')
+    
+    db.close()
+    return redirect(url_for('mes_detalhes', professor_id=doc['professor_id'], ano=doc['ano'], mes=doc['mes']))
+
+@app.route('/gastos/deletar/<int:gasto_id>', methods=['POST'])
+def deletar_gasto(gasto_id):
+    db = get_db()
+    gasto = db.execute('SELECT * FROM gastos WHERE id = ?', (gasto_id,)).fetchone()
+    
+    if gasto:
+        db.execute('DELETE FROM gastos WHERE id = ?', (gasto_id,))
+        db.commit()
+        flash('Gasto apagado com sucesso.', 'success')
+        categoria = gasto['categoria']
+        ano = gasto['ano']
+        parcela = gasto['parcela']
+        db.close()
+        return redirect(url_for('parcela_gastos', categoria=categoria, ano=ano, parcela=parcela))
+    
+    db.close()
+    flash('Gasto não encontrado.', 'error')
+    return redirect(url_for('controle_gastos_index'))
+
+@app.route('/emprestimos')
+def emprestimos():
+    db = get_db()
+    # Pega todos os empréstimos, os mais recentes primeiro
+    lista_emprestimos = db.execute('SELECT * FROM emprestimos ORDER BY data_retirada DESC').fetchall()
+    db.close()
+    return render_template('emprestimos.html', emprestimos=lista_emprestimos)
+
+@app.route('/emprestimos/adicionar', methods=['GET', 'POST'])
+def adicionar_emprestimo():
+    if request.method == 'POST':
+        data_retirada = request.form['data_retirada']
+        item = request.form['item']
+        responsavel = request.form['responsavel']
+        observacoes = request.form['observacoes']
+
+        if not data_retirada or not item or not responsavel:
+            flash('Data de Retirada, Item e Responsável são campos obrigatórios.', 'error')
+        else:
+            db = get_db()
+            db.execute(
+                'INSERT INTO emprestimos (data_retirada, item, responsavel, observacoes, data_devolucao) VALUES (?, ?, ?, ?, NULL)',
+                (data_retirada, item, responsavel, observacoes)
+            )
+            db.commit()
+            db.close()
+            flash('Empréstimo registado com sucesso!', 'success')
+            return redirect(url_for('emprestimos'))
+    
+    data_hoje = datetime.datetime.now().strftime('%Y-%m-%d')
+    return render_template('formulario_emprestimo.html', acao="Adicionar", data_hoje=data_hoje)
+
+@app.route('/emprestimos/editar/<int:emprestimo_id>', methods=['GET', 'POST'])
+def editar_emprestimo(emprestimo_id):
+    db = get_db()
+    emprestimo = db.execute('SELECT * FROM emprestimos WHERE id = ?', (emprestimo_id,)).fetchone()
+    db.close()
+
+    if emprestimo is None:
+        abort(404)
+
+    if request.method == 'POST':
+        data_retirada = request.form['data_retirada']
+        item = request.form['item']
+        responsavel = request.form['responsavel']
+        data_devolucao = request.form.get('data_devolucao') # .get para ser seguro caso não exista
+        observacoes = request.form['observacoes']
+
+        if not data_devolucao: # Se o campo for deixado vazio, guarda como NULL
+            data_devolucao = None
+
+        if not data_retirada or not item or not responsavel:
+            flash('Data de Retirada, Item e Responsável são campos obrigatórios.', 'error')
+        else:
+            db = get_db()
+            db.execute(
+                'UPDATE emprestimos SET data_retirada = ?, item = ?, responsavel = ?, data_devolucao = ?, observacoes = ? WHERE id = ?',
+                (data_retirada, item, responsavel, data_devolucao, observacoes, emprestimo_id)
+            )
+            db.commit()
+            db.close()
+            flash('Empréstimo atualizado com sucesso!', 'success')
+            return redirect(url_for('emprestimos'))
+
+    return render_template('formulario_emprestimo.html', acao="Editar", emprestimo=emprestimo)
+
+@app.route('/emprestimos/deletar/<int:emprestimo_id>', methods=['POST'])
+def deletar_emprestimo(emprestimo_id):
+    db = get_db()
+    db.execute('DELETE FROM emprestimos WHERE id = ?', (emprestimo_id,))
+    db.commit()
+    db.close()
+    flash('Registo de empréstimo apagado com sucesso.', 'success')
+    return redirect(url_for('emprestimos'))
+
+# --- ROTA PARA A PÁGINA DE RELATÓRIOS
+@app.route('/relatorio', methods=['GET', 'POST'])
+def relatorio():
+    if request.method == 'POST':
+        tipo_periodo = request.form.get('tipo_periodo')
+        professor_id = request.form.get('professor_id')
+        ano = int(request.form.get('ano'))
+        formato = request.form.get('formato')
+        mes = request.form.get('mes')
+
+        db = get_db()
+        query = """
+            SELECT p.nome, d.mes, d.nf_numero, d.nf_data, d.nf_valor
+            FROM documentos d
+            JOIN professores p ON d.professor_id = p.id
+            WHERE d.tipo_documento = 'NF' AND d.ano = ?
+        """
+        params = [ano]
+        if tipo_periodo == 'mensal' and mes:
+            query += " AND d.mes = ?"
+            params.append(int(mes))
+        if professor_id != 'todos':
+            query += " AND p.id = ?"
+            params.append(int(professor_id))
+        query += " ORDER BY p.nome, d.mes"
+        resultados = db.execute(query, tuple(params)).fetchall()
+        db.close()
+
+        if not resultados:
+            flash('Nenhum dado encontrado para os filtros selecionados.', 'error')
+            return redirect(url_for('relatorio'))
+
+        # --- Geração de Ficheiros ---
+        if formato == 'excel':
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Relatório de Pagamentos"
+            headers = ["Professor", "Mês", "Nº da Nota", "Data da Nota", "Valor (R$)"]
+            ws.append(headers)
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+            total_geral = 0
+            for linha in resultados:
+                valor = linha['nf_valor'] or 0
+                ws.append([linha['nome'], str(linha['mes']), linha['nf_numero'], linha['nf_data'], valor])
+                total_geral += valor
+            ws.append([])
+            ws.append(["", "", "", "TOTAL GERAL:", total_geral])
+            total_cell = ws.cell(row=ws.max_row, column=4)
+            total_cell.font = Font(bold=True)
+            valor_total_cell = ws.cell(row=ws.max_row, column=5)
+            valor_total_cell.font = Font(bold=True)
+            valor_total_cell.number_format = '"R$" #,##0.00'
+            virtual_workbook = BytesIO()
+            wb.save(virtual_workbook)
+            virtual_workbook.seek(0)
+            nome_ficheiro = f"relatorio_{ano}_{mes if tipo_periodo == 'mensal' else 'anual'}.xlsx"
+            return send_file(
+                virtual_workbook,
+                as_attachment=True,
+                download_name=nome_ficheiro,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+        
+        # --- NOVO BLOCO PARA GERAR O FICHEIRO WORD ---
+        elif formato == 'word':
+            document = Document()
+            document.add_heading('Relatório de Pagamentos', level=1)
+
+            nome_professor = "Todos os Professores"
+            if professor_id != 'todos':
+                db = get_db()
+                prof = db.execute('SELECT nome FROM professores WHERE id = ?', (professor_id,)).fetchone()
+                db.close()
+                if prof:
+                    nome_professor = prof['nome']
+            
+            periodo_str = f"Ano: {ano}"
+            if tipo_periodo == 'mensal':
+                nome_mes = datetime.date(2000, int(mes), 1).strftime('%B').capitalize()
+                periodo_str = f"Período: {nome_mes} de {ano}"
+            
+            document.add_paragraph(f"Professor: {nome_professor}")
+            document.add_paragraph(periodo_str)
+            document.add_paragraph()
+
+            # Criar a tabela
+            table = document.add_table(rows=1, cols=5)
+            table.style = 'Table Grid'
+            hdr_cells = table.rows[0].cells
+            headers = ["Professor", "Mês", "Nº da Nota", "Data da Nota", "Valor (R$)"]
+            for i, header_text in enumerate(headers):
+                hdr_cells[i].text = header_text
+                hdr_cells[i].paragraphs[0].runs[0].font.bold = True
+
+            # Preencher a tabela com os dados
+            total_geral = 0
+            for linha in resultados:
+                row_cells = table.add_row().cells
+                valor = linha['nf_valor'] or 0
+                row_cells[0].text = linha['nome']
+                row_cells[1].text = str(linha['mes'])
+                row_cells[2].text = str(linha['nf_numero'] or 'N/A')
+                row_cells[3].text = str(linha['nf_data'] or 'N/A')
+                row_cells[4].text = f"R$ {formatar_valor(valor)}"
+                total_geral += valor
+            
+            # Adicionar linha de total
+            document.add_paragraph() # Espaçamento
+            p = document.add_paragraph()
+            p.add_run('TOTAL GERAL: ').bold = True
+            p.add_run(f"R$ {formatar_valor(total_geral)}").bold = True
+
+            # Salvar em memória e enviar para download
+            virtual_document = BytesIO()
+            document.save(virtual_document)
+            virtual_document.seek(0)
+            
+            nome_ficheiro = f"relatorio_{ano}_{mes if tipo_periodo == 'mensal' else 'anual'}.docx"
+
+            return send_file(
+                virtual_document,
+                as_attachment=True,
+                download_name=nome_ficheiro,
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+
+    # Lógica GET para exibir a página
+    db = get_db()
+    professores = db.execute('SELECT id, nome FROM professores ORDER BY nome').fetchall()
+    db.close()
+    ano_atual = datetime.datetime.now().year
+    anos = [ano_atual + i for i in range(3)] 
+    meses = [(m, datetime.date(2000, m, 1).strftime('%B').capitalize()) for m in range(1, 13)]
+    
+    return render_template('relatorio.html', anos=anos, meses=meses, professores=professores)
+
+    # --- ROTAS DO CALENDÁRIO ---
+
+@app.route('/calendario/')
+@app.route('/calendario/<int:ano>/<int:mes>')
+def calendario(ano=None, mes=None):
+    agora = datetime.datetime.now()
+    if ano is None:
+        ano = agora.year
+    if mes is None:
+        mes = agora.month
+
+    mes_anterior_dt = (datetime.date(ano, mes, 1) - datetime.timedelta(days=1))
+    mes_seguinte_dt = (datetime.date(ano, mes, 28) + datetime.timedelta(days=4))
+
+    cal = calendar.Calendar()
+    semanas = cal.monthdatescalendar(ano, mes)
+
+    db = get_db()
+    eventos_mes = db.execute(
+        "SELECT id, data, horario, descricao FROM eventos WHERE strftime('%Y-%m', data) = ? ORDER BY horario",
+        (f'{ano:04d}-{mes:02d}',)
+    ).fetchall()
+    db.close()
+
+    # --- LÓGICA ATUALIZADA PARA AGRUPAR MÚLTIPLOS EVENTOS POR DIA ---
+    eventos_mapa = {}
+    for evento in eventos_mes:
+        data_evento = evento['data']
+        if data_evento not in eventos_mapa:
+            eventos_mapa[data_evento] = []
+        eventos_mapa[data_evento].append(dict(evento))
+    
+    meses_nomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+    nome_mes_atual = meses_nomes[mes - 1]
+
+    return render_template('calendario.html', 
+                           semanas=semanas,
+                           ano=ano,
+                           mes=mes,
+                           nome_mes=nome_mes_atual,
+                           mes_anterior=mes_anterior_dt,
+                           mes_seguinte=mes_seguinte_dt,
+                           eventos_mapa=eventos_mapa,
+                           hoje=agora.date())
+@app.route('/api/eventos/<data>')
+def api_get_eventos(data):
+    """Retorna todos os eventos de um dia específico em formato JSON."""
+    db = get_db()
+    eventos = db.execute(
+        'SELECT id, horario, descricao FROM eventos WHERE data = ? ORDER BY horario', (data,)
+    ).fetchall()
+    db.close()
+    # Converte a lista de resultados para JSON
+    return jsonify([dict(ix) for ix in eventos])
+
+@app.route('/api/eventos/adicionar', methods=['POST'])
+def api_adicionar_evento():
+    """Adiciona um novo evento à base de dados."""
+    dados = request.get_json()
+    data = dados.get('data')
+    horario = dados.get('horario')
+    descricao = dados.get('descricao')
+
+    if not data or not descricao:
+        return jsonify({'status': 'erro', 'mensagem': 'Data e descrição são obrigatórias.'}), 400
+
+    db = get_db()
+    db.execute(
+        'INSERT INTO eventos (data, horario, descricao) VALUES (?, ?, ?)',
+        (data, horario, descricao)
+    )
+    db.commit()
+    db.close()
+    return jsonify({'status': 'sucesso', 'mensagem': 'Evento adicionado!'})
+
+@app.route('/api/eventos/deletar/<int:evento_id>', methods=['POST'])
+def api_deletar_evento(evento_id):
+    """Apaga um evento específico pelo seu ID."""
+    db = get_db()
+    db.execute('DELETE FROM eventos WHERE id = ?', (evento_id,))
+    db.commit()
+    db.close()
+    return jsonify({'status': 'sucesso', 'mensagem': 'Evento apagado.'})
+
+if __name__ == '__main__':
+    # ... (código existente)
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
+    app.run(debug=True)

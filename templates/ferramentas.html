@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Ferramentas de PDF</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #444;
+            border-bottom: 2px solid #0056b3;
+            padding-bottom: 10px;
+        }
+        .ferramentas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            list-style-type: none;
+            padding: 0;
+            margin-top: 20px;
+        }
+        .ferramentas-grid li a {
+            display: block;
+            padding: 20px;
+            background-color: #17a2b8;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 1.2em;
+            transition: background-color 0.3s;
+        }
+        .ferramentas-grid li a:hover {
+            background-color: #138496;
+        }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #007bff; text-decoration: none; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('index') }}" class="back-link">&larr; Voltar à Página Inicial</a>
+        <h1>Ferramentas de PDF</h1>
+
+        ...
+        <ul class="ferramentas-grid">
+            <li>
+                <a href="{{ url_for('juntar_pdf') }}">Juntar PDFs</a>
+            </li>
+            <li>
+                <a href="{{ url_for('converter_word') }}">Converter Word para PDF</a>
+            </li>
+            <li>
+                <a href="{{ url_for('controle_gastos_index') }}" style="background-color: #28a745;">Controle de Gastos</a>
+            </li>
+            <li>
+                <a href="{{ url_for('emprestimos') }}" style="background-color: #17a2b8;">Controle de Empréstimos</a>
+            </li>
+            <li>
+                <a href="{{ url_for('relatorio') }}" style="background-color: #17a2b8;">Relatório de Pagamentos</a>
+            </li>
+             <li>
+                <a href="{{ url_for('calendario') }}" style="background-color: #fd7e14;">Calendário de Eventos</a>
+            </li>
+        </ul>
+    </div>
+</body>
+</html>

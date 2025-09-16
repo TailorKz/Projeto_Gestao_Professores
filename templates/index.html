@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Documentos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #444;
+            border-bottom: 2px solid #0056b3;
+            padding-bottom: 10px;
+        }
+        .professores-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            list-style-type: none;
+            padding: 0;
+        }
+        .professores-grid li a {
+            display: block;
+            padding: 15px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            text-align: center;
+            transition: background-color 0.3s;
+        }
+        .professores-grid li a:hover {
+            background-color: #0056b3;
+        }
+        .button {
+            display: inline-block;
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            text-decoration: none;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Painel de Gestão de Professores</h1>
+        <a href="{{ url_for('adicionar_professor') }}" class="button">Adicionar Novo Professor</a>
+        
+        <h2>Cultura</h2>
+        <ul class="professores-grid">
+            {% for professor in cultura %}
+                <li>
+                    <a href="{{ url_for('detalhes_professor', professor_id=professor['id']) }}">{{ professor['nome'] }}</a>
+                </li>
+            {% endfor %}
+        </ul>
+
+        <h2>Esporte</h2>
+        <ul class="professores-grid">
+            {% for professor in esporte %}
+                 <li>
+                    <a href="{{ url_for('detalhes_professor', professor_id=professor['id']) }}">{{ professor['nome'] }}</a>
+                </li>
+            {% endfor %}
+        </ul>
+        <hr style="margin-top: 40px;">
+
+        <h2>Ferramentas</h2>
+        <ul class="professores-grid">
+            <li>
+                <a href="{{ url_for('ferramentas_pdf') }}" style="background-color: #5a6268;">Acessar Ferramentas</a>
+            </li>
+        </ul>
+    </div>
+</body>
+</html>

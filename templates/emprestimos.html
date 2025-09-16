@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Controle de Empréstimos</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .back-link { display: inline-block; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .button { display: inline-block; background-color: #007bff; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; margin-bottom: 20px; }
+        .actions-form { display: inline-block; margin-left: 10px; }
+        .button.edit { background-color: #ffc107; color: black; padding: 5px 10px; font-size: 0.9em; }
+        .button.delete { background-color: #dc3545; padding: 5px 10px; font-size: 0.9em; }
+        .status-ativo { color: #dc3545; font-weight: bold; }
+        .status-devolvido { color: #28a745; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('ferramentas_pdf') }}" class="back-link">&larr; Voltar às Ferramentas</a>
+        <h1>Controle de Empréstimos</h1>
+        <a href="{{ url_for('adicionar_emprestimo') }}" class="button">Adicionar Novo Empréstimo</a>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Item / Instrumento</th>
+                    <th>Responsável</th>
+                    <th>Data da Retirada</th>
+                    <th>Data da Devolução</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in emprestimos %}
+                <tr>
+                    <td>{{ item['item'] }}</td>
+                    <td>{{ item['responsavel'] }}</td>
+                    <td>{{ item['data_retirada'] }}</td>
+                    <td>{{ item['data_devolucao'] or '---' }}</td>
+                    <td>
+                        {% if item['data_devolucao'] %}
+                            <span class="status-devolvido">Devolvido</span>
+                        {% else %}
+                            <span class="status-ativo">Ativo</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('editar_emprestimo', emprestimo_id=item.id) }}" class="button edit">Editar</a>
+                        <form class="actions-form" action="{{ url_for('deletar_emprestimo', emprestimo_id=item.id) }}" method="post" onsubmit="return confirm('Tem certeza?');">
+                            <button type="submit" class="button delete">Apagar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align:center;">Nenhum empréstimo registado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ nome_mes }} - {{ professor['nome'] }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #007bff; text-decoration: none; }
+        .back-link:hover { text-decoration: underline; }
+        .flash-message { padding: 15px; margin-bottom: 20px; border-radius: 5px; color: #fff; }
+        .flash-success { background-color: #286aa7; }
+        .flash-error { background-color: #dc3545; }
+        .upload-section { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; }
+        .upload-section label { font-weight: bold; font-size: 1.1em; display: block; margin-bottom: 10px; }
+        .upload-section .status { margin-top: 10px; }
+        .status-enviado { color: #285fa7; font-weight: bold; }
+        .status-pendente { color: #dc3545; font-weight: bold; }
+        input[type="file"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        button:hover { background-color: #0056b3; }
+        .delete-btn { background-color: #dc3545; font-size: 0.8em; padding: 5px 10px; margin-left: 10px; }
+        .delete-btn:hover { background-color: #c82333; }
+        .ocr-data { border-left: 3px solid #007bff; padding-left: 10px; margin-top: 10px; margin-left: 15px; font-size: 0.9em; }
+        .ocr-data p { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('detalhes_professor', professor_id=professor['id']) }}" class="back-link">&larr; Voltar para {{ professor['nome'] }}</a>
+
+        <h1>{{ nome_mes }} de {{ ano }}</h1>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <h2>Gestão de Documentos</h2>
+        
+        <form method="post" enctype="multipart/form-data">
+            {% if not documentos.NF or not documentos.Relatorio or not documentos.Chamada %}
+                <button type="submit">Enviar Novos Arquivos</button>
+            {% endif %}
+            
+            <div class="upload-section">
+                <label for="nota_fiscal">1. Nota Fiscal</label>
+                {% if not documentos.NF %}
+                    <div class="status status-pendente">Status: Pendente</div>
+                    <input type="file" id="nota_fiscal" name="nota_fiscal">
+                {% endif %}
+            </div>
+
+            <div class="upload-section">
+                <label for="relatorio">2. Relatório de Atividades</label>
+                {% if not documentos.Relatorio %}
+                    <div class="status status-pendente">Status: Pendente</div>
+                    <input type="file" id="relatorio" name="relatorio">
+                {% endif %}
+            </div>
+
+            <div class="upload-section">
+                <label for="chamada">3. Lista de Chamada</label>
+                {% if not documentos.Chamada %}
+                    <div class="status status-pendente">Status: Pendente</div>
+                    <input type="file" id="chamada" name="chamada">
+                {% endif %}
+            </div>
+        </form>
+
+        {% if documentos %}
+            <div class="documentos-enviados">
+                {% if documentos.NF %}
+                <div class="upload-section">
+                    <label>1. Nota Fiscal</label>
+                    <div class="status status-enviado">
+                        Status: Enviado &#10004;
+                        <a href="{{ url_for('uploaded_file', filename=documentos.NF['caminho_arquivo']) }}" target="_blank">Visualizar</a>
+                        <form action="{{ url_for('deletar_documento', doc_id=documentos.NF['id']) }}" method="post" style="display: inline;">
+                            <button type="submit" class="delete-btn">Apagar</button>
+                        </form>
+                    </div>
+                    <div class="ocr-data">
+                        <p><strong>Número:</strong> {{ documentos.NF['nf_numero'] or 'Não extraído' }}</p>
+                        <p><strong>Data:</strong> {{ documentos.NF['nf_data'] or 'Não extraída' }}</p>
+                        <p><strong>Valor:</strong> R$ {{ documentos.NF['nf_valor'] | formatar_valor }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if documentos.Relatorio %}
+                <div class="upload-section">
+                    <label>2. Relatório de Atividades</label>
+                    <div class="status status-enviado">
+                        Status: Enviado &#10004;
+                        <a href="{{ url_for('uploaded_file', filename=documentos.Relatorio['caminho_arquivo']) }}" target="_blank">Visualizar</a>
+                        <form action="{{ url_for('deletar_documento', doc_id=documentos.Relatorio['id']) }}" method="post" style="display: inline;">
+                            <button type="submit" class="delete-btn">Apagar</button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if documentos.Chamada %}
+                <div class="upload-section">
+                    <label>3. Lista de Chamada</label>
+                    <div class="status status-enviado">
+                        Status: Enviado &#10004;
+                        <a href="{{ url_for('uploaded_file', filename=documentos.Chamada['caminho_arquivo']) }}" target="_blank">Visualizar</a>
+                        <form action="{{ url_for('deletar_documento', doc_id=documentos.Chamada['id']) }}" method="post" style="display: inline;">
+                            <button type="submit" class="delete-btn">Apagar</button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        {% endif %}
+
+    </div>
+</body>
+</html>
