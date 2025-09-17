@@ -157,16 +157,39 @@ def mes_detalhes(professor_id, ano, mes):
         arquivos = {'NF': request.files.get('nota_fiscal'), 'Relatorio': request.files.get('relatorio'), 'Chamada': request.files.get('chamada')}
         for tipo, arquivo in arquivos.items():
             if arquivo and arquivo.filename != '':
-                dados_ocr = processar_nf(arquivo)
-                print(f"DEBUG: Dados extraídos do OCR para a NF: {dados_ocr}")
                 filename_seguro = secure_filename(arquivo.filename)
+                
+                # CÓDIGO CORRIGIDO
+                caminho_temporario = os.path.join(app.config['UPLOAD_FOLDER'], filename_seguro)
+                arquivo.save(caminho_temporario)
+
+                # Processa o arquivo do caminho salvo
+                if tipo == 'NF':
+                    dados_ocr = processar_nf(caminho_temporario)
+                    print(f"DEBUG: Dados extraídos do OCR para a NF: {dados_ocr}")
+                    nf_numero = dados_ocr.get('numero')
+                    nf_data = dados_ocr.get('data')
+                    nf_valor = dados_ocr.get('valor')
+                else:
+                    dados_ocr = {}
+                    nf_numero = None
+                    nf_data = None
+                    nf_valor = None
+                
+                # Faz o upload para o R2 e remove o arquivo temporário
                 nome_final_r2 = f"{professor_id}/{ano}/{mes}/{tipo}_{filename_seguro}"
                 try:
-                    s3_client.upload_fileobj(arquivo, BUCKET_NAME, nome_final_r2)
-                    db.execute('INSERT INTO documentos (professor_id, mes, ano, tipo_documento, caminho_arquivo) VALUES (?, ?, ?, ?, ?)', (professor_id, mes, ano, tipo, nome_final_r2))
+                    s3_client.upload_file(caminho_temporario, BUCKET_NAME, nome_final_r2)
+                    os.remove(caminho_temporario)
+                    db.execute(
+                        'INSERT INTO documentos (professor_id, mes, ano, tipo_documento, caminho_arquivo, nf_numero, nf_data, nf_valor) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        (professor_id, mes, ano, tipo, nome_final_r2, nf_numero, nf_data, nf_valor)
+                    )
                 except Exception as e:
                     flash(f"Erro ao fazer upload: {e}", "error")
+        
         db.commit()
+        db.close()
         flash('Documentos enviados com sucesso!', 'success')
         return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
 
