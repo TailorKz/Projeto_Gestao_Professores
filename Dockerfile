@@ -4,14 +4,18 @@ FROM python:3.10-slim
 # Definir o diretório de trabalho dentro do contentor
 WORKDIR /app
 
-# Instalar pacotes de sistema para o OCR e a formatação de locale
+# Instalar pacotes de sistema necessários e dependências
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-por \
     libjpeg-dev \
     zlib1g-dev \
     libpq-dev \
-    locales
+    locales \
+    git \
+    gcc \
+    tcl-dev \
+    tk-dev
 
 # Configurar o locale pt_BR.UTF-8 de uma forma mais robusta
 RUN echo "pt_BR.UTF-8 UTF-8" > /etc/locale.gen && \
