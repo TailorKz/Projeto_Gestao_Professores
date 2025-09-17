@@ -30,6 +30,8 @@ DATABASE = os.path.join(BASE_DIR, 'gestor.db')
 app.config['SECRET_KEY'] = 'uma-chave-secreta-muito-dificil'
 UPLOAD_FOLDER = '/tmp/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
 # Verifica e cria a base de dados se não existir
 if not os.path.exists(DATABASE):
