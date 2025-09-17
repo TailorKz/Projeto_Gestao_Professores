@@ -17,6 +17,9 @@ RUN apt-get update && apt-get install -y \
     tcl-dev \
     tk-dev
 
+# Adicionar uma etapa de depuração para verificar se o tesseract está instalado
+RUN which tesseract
+
 # Configurar o locale pt_BR.UTF-8 de uma forma mais robusta
 RUN echo "pt_BR.UTF-8 UTF-8" > /etc/locale.gen && \
     locale-gen
