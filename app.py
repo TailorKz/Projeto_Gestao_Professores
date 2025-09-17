@@ -14,6 +14,7 @@ import calendar
 import boto3
 from botocore.exceptions import NoCredentialsError
 from database import criar_banco
+from babel.numbers import format_decimal
 
 # --- CONFIGURAÇÃO DE CAMINHO DINÂMICO ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -56,11 +57,14 @@ if CLOUDFLARE_ACCOUNT_ID:
         region_name='auto'
     )
 
+
 @app.template_filter('formatar_valor')
 def formatar_valor(value):
     if value is None: return "0,00"
-    try: return locale.format_string('%.2f', float(value), grouping=True)
-    except (ValueError, TypeError): return value
+    try:
+        return format_decimal(value, locale='pt_BR')
+    except (ValueError, TypeError):
+        return value
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
