@@ -13,6 +13,7 @@ from docx import Document
 import calendar
 import boto3
 from botocore.exceptions import NoCredentialsError
+from database import criar_banco
 
 # --- CONFIGURAÇÃO DE CAMINHO DINÂMICO ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -28,6 +29,15 @@ DATABASE = os.path.join(BASE_DIR, 'gestor.db')
 app.config['SECRET_KEY'] = 'uma-chave-secreta-muito-dificil'
 UPLOAD_FOLDER = '/tmp/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Verifica e cria a base de dados se não existir
+if not os.path.exists(DATABASE):
+    print("Base de dados não encontrada, a criar...")
+    try:
+        criar_banco()
+        print("Base de dados criada com sucesso.")
+    except Exception as e:
+        print(f"Erro ao criar a base de dados: {e}")
 
 # --- CONFIGURAÇÃO DO CLOUDFLARE R2 ---
 CLOUDFLARE_ACCOUNT_ID = os.environ.get('CLOUDFLARE_ACCOUNT_ID')
