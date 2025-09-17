@@ -5,7 +5,7 @@ import re
 import os
 
 # --- CONFIGURAÇÃO DO TESSERACT ---
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 
 
 def extrair_texto_de_imagem(caminho_imagem):

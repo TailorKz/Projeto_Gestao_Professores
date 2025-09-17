@@ -24,9 +24,6 @@ ENV LC_ALL=pt_BR.UTF-8
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Linha de depuração para verificar o caminho do tesseract
-RUN which tesseract
-
 # Copiar o resto do seu código para dentro do contentor
 COPY . .
 
