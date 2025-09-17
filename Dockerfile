@@ -13,16 +13,19 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     locales
 
-# Configurar o locale pt_BR.UTF-8
-RUN sed -i -e 's/# pt_BR.UTF-8 UTF-8/pt_BR.UTF-8 UTF-8/' /etc/locale.gen && \
+# Configurar o locale pt_BR.UTF-8 de uma forma mais robusta
+RUN echo "pt_BR.UTF-8 UTF-8" > /etc/locale.gen && \
     locale-gen
-ENV LANG pt_BR.UTF-8
-ENV LANGUAGE pt_BR:en
-ENV LC_ALL pt_BR.UTF-8
+ENV LANG=pt_BR.UTF-8
+ENV LANGUAGE=pt_BR:en
+ENV LC_ALL=pt_BR.UTF-8
 
 # Copiar o ficheiro de requisitos e instalar as bibliotecas
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Linha de depuração para verificar o caminho do tesseract
+RUN which tesseract
 
 # Copiar o resto do seu código para dentro do contentor
 COPY . .
