@@ -157,6 +157,8 @@ def mes_detalhes(professor_id, ano, mes):
         arquivos = {'NF': request.files.get('nota_fiscal'), 'Relatorio': request.files.get('relatorio'), 'Chamada': request.files.get('chamada')}
         for tipo, arquivo in arquivos.items():
             if arquivo and arquivo.filename != '':
+                dados_ocr = processar_nf(arquivo)
+                print(f"DEBUG: Dados extraídos do OCR para a NF: {dados_ocr}")
                 filename_seguro = secure_filename(arquivo.filename)
                 nome_final_r2 = f"{professor_id}/{ano}/{mes}/{tipo}_{filename_seguro}"
                 try:
