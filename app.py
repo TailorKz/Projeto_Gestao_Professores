@@ -321,9 +321,6 @@ def parcela_gastos(categoria, ano, parcela):
     return render_template('parcela_gastos.html', categoria=categoria, ano=ano, parcela=parcela,
                            valor_inicial=valor_inicial, gastos=gastos, total_gasto=total_gasto, saldo=saldo)
 
-@app.route('/professor/<int:professor_id>')
-
-
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
