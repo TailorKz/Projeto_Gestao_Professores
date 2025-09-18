@@ -346,7 +346,7 @@ def parcela_gastos(categoria, ano, parcela):
         VALUES (%s, %s, %s, %s)
         ON CONFLICT (categoria, ano, parcela) 
         DO UPDATE SET valor_inicial = EXCLUDED.valor_inicial
-        """, (categoria, ano, parcela, valor_inicial_float)
+        """, (categoria, ano, parcela, valor_inicial_decimal)
         )
 
 
