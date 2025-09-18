@@ -664,9 +664,9 @@ def calendario(ano=None, mes=None):
 
     conn, db = get_db()
     db.execute(
-    "SELECT id, data, horario, descricao FROM eventos WHERE to_char(data, 'YYYY-MM') = %s ORDER BY horario",
+    "SELECT id, data, horario, descricao FROM eventos WHERE to_char(data::date, 'YYYY-MM') = %s ORDER BY horario",
     (f'{ano:04d}-{mes:02d}',)
-    )
+)
     eventos_mes = db.fetchall()
     db.close()
     conn.close()
