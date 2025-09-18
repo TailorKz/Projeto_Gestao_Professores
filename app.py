@@ -76,7 +76,8 @@ def get_db():
 @app.route('/')
 def index():
     db = get_db()
-    professores_db = db.execute('SELECT * FROM professores ORDER BY nome').fetchall()
+    db.execute('SELECT * FROM professores ORDER BY nome') # 1. Executar a consulta
+    professores_db = db.fetchall()                      # 2. Obter os resultados
     db.close()
     professores_cultura = [p for p in professores_db if p['categoria'] == 'Cultura']
     professores_esporte = [p for p in professores_db if p['categoria'] == 'Esporte']
@@ -105,7 +106,8 @@ def adicionar_professor():
 @app.route('/professor/editar/<int:professor_id>', methods=['GET', 'POST'])
 def editar_professor(professor_id):
     db = get_db()
-    professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
+    db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,))
+    professor = db.fetchone()
     if request.method == 'POST':
         nome = request.form['nome']
         categoria = request.form['categoria']
@@ -136,7 +138,8 @@ def deletar_professor(professor_id):
 @app.route('/professor/<int:professor_id>')
 def detalhes_professor(professor_id):
     db = get_db()
-    professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
+    db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,))
+    professor = db.fetchone()
     db.close()
     if professor is None: abort(404)
     anos = [datetime.datetime.now().year + i for i in range(3)]
@@ -146,7 +149,8 @@ def detalhes_professor(professor_id):
 @app.route('/professor/<int:professor_id>/<int:ano>/<int:mes>', methods=['GET', 'POST'])
 def mes_detalhes(professor_id, ano, mes):
     db = get_db()
-    professor = db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,)).fetchone()
+    db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,))
+    professor = db.fetchone()
     if professor is None: abort(404)
     nome_mes = datetime.date(ano, mes, 1).strftime('%B').capitalize()
 
@@ -194,7 +198,8 @@ def mes_detalhes(professor_id, ano, mes):
         flash('Documentos enviados com sucesso!', 'success')
         return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
 
-    docs_db = db.execute('SELECT * FROM documentos WHERE professor_id = ? AND mes = ? AND ano = ?', (professor_id, mes, ano)).fetchall()
+    db.execute('SELECT * FROM documentos WHERE professor_id = ? AND mes = ? AND ano = ?', (professor_id, mes, ano))
+    docs_db = db.fetchall()
     documentos = {doc['tipo_documento']: doc for doc in docs_db}
     db.close()
     return render_template('mes_detalhes.html', professor=professor, mes_numero=mes, nome_mes=nome_mes, ano=ano, documentos=documentos)
@@ -210,7 +215,8 @@ def view_file(filename):
 @app.route('/documento/deletar/<int:doc_id>', methods=['POST'])
 def deletar_documento(doc_id):
     db = get_db()
-    doc = db.execute('SELECT * FROM documentos WHERE id = ?', (doc_id,)).fetchone()
+    db.execute('SELECT * FROM documentos WHERE id = ?', (doc_id,))
+    doc = db.fetchone()
     if doc:
         try:
             s3_client.delete_object(Bucket=BUCKET_NAME, Key=doc['caminho_arquivo'])
@@ -338,10 +344,11 @@ def parcela_gastos(categoria, ano, parcela):
         return redirect(url_for('parcela_gastos', categoria=categoria, ano=ano, parcela=parcela))
 
     # --- LÓGICA GET ATUALIZADA PARA LER O VALOR INICIAL DO BANCO DE DADOS ---
-    parcela_info = db.execute(
-        'SELECT valor_inicial FROM parcelas WHERE categoria = ? AND ano = ? AND parcela = ?',
-        (categoria, ano, parcela)
-    ).fetchone()
+    db.execute(
+    'SELECT valor_inicial FROM parcelas WHERE categoria = ? AND ano = ? AND parcela = ?',
+    (categoria, ano, parcela)
+    )
+    parcela_info = db.fetchone()
 
     if parcela_info:
         valor_inicial = parcela_info['valor_inicial']
@@ -349,11 +356,11 @@ def parcela_gastos(categoria, ano, parcela):
         valores_padrao = {"Cultura": 72524.62, "Esporte": 31389.00}
         valor_inicial = valores_padrao.get(categoria, 0)
 
-    gastos = db.execute(
-        'SELECT * FROM gastos WHERE categoria = ? AND ano = ? AND parcela = ? ORDER BY id',
-        (categoria, ano, parcela)
-    ).fetchall()
-    db.close()
+    db.execute(
+    'SELECT * FROM gastos WHERE categoria = ? AND ano = ? AND parcela = ? ORDER BY id',
+    (categoria, ano, parcela)
+    )
+    gastos = db.fetchall()
 
     total_gasto = sum(g['valor'] for g in gastos)
     saldo = valor_inicial - total_gasto
@@ -371,7 +378,8 @@ def uploaded_file(filename):
 @app.route('/gastos/deletar/<int:gasto_id>', methods=['POST'])
 def deletar_gasto(gasto_id):
     db = get_db()
-    gasto = db.execute('SELECT * FROM gastos WHERE id = ?', (gasto_id,)).fetchone()
+    db.execute('SELECT * FROM gastos WHERE id = ?', (gasto_id,))
+    gasto = db.fetchone()
     
     if gasto:
         db.execute('DELETE FROM gastos WHERE id = ?', (gasto_id,))
@@ -391,7 +399,8 @@ def deletar_gasto(gasto_id):
 def emprestimos():
     db = get_db()
     # Pega todos os empréstimos, os mais recentes primeiro
-    lista_emprestimos = db.execute('SELECT * FROM emprestimos ORDER BY data_retirada DESC').fetchall()
+    db.execute('SELECT * FROM emprestimos ORDER BY data_retirada DESC')
+    lista_emprestimos = db.fetchall()
     db.close()
     return render_template('emprestimos.html', emprestimos=lista_emprestimos)
 
@@ -422,7 +431,8 @@ def adicionar_emprestimo():
 @app.route('/emprestimos/editar/<int:emprestimo_id>', methods=['GET', 'POST'])
 def editar_emprestimo(emprestimo_id):
     db = get_db()
-    emprestimo = db.execute('SELECT * FROM emprestimos WHERE id = ?', (emprestimo_id,)).fetchone()
+    db.execute('SELECT * FROM emprestimos WHERE id = ?', (emprestimo_id,))
+    emprestimo = db.fetchone()
     db.close()
 
     if emprestimo is None:
@@ -487,7 +497,8 @@ def relatorio():
             query += " AND p.id = ?"
             params.append(int(professor_id))
         query += " ORDER BY p.nome, d.mes"
-        resultados = db.execute(query, tuple(params)).fetchall()
+        db.execute(query, tuple(params))
+        resultados = db.fetchall()
         db.close()
 
         if not resultados:
@@ -534,7 +545,8 @@ def relatorio():
             nome_professor = "Todos os Professores"
             if professor_id != 'todos':
                 db = get_db()
-                prof = db.execute('SELECT nome FROM professores WHERE id = ?', (professor_id,)).fetchone()
+                db.execute('SELECT nome FROM professores WHERE id = ?', (professor_id,))
+                prof = db.fetchone()
                 db.close()
                 if prof:
                     nome_professor = prof['nome']
@@ -591,7 +603,8 @@ def relatorio():
 
     # Lógica GET para exibir a página
     db = get_db()
-    professores = db.execute('SELECT id, nome FROM professores ORDER BY nome').fetchall()
+    db.execute('SELECT id, nome FROM professores ORDER BY nome')
+    professores = db.fetchall()
     db.close()
     ano_atual = datetime.datetime.now().year
     anos = [ano_atual + i for i in range(3)] 
@@ -617,10 +630,11 @@ def calendario(ano=None, mes=None):
     semanas = cal.monthdatescalendar(ano, mes)
 
     db = get_db()
-    eventos_mes = db.execute(
-        "SELECT id, data, horario, descricao FROM eventos WHERE strftime('%Y-%m', data) = ? ORDER BY horario",
-        (f'{ano:04d}-{mes:02d}',)
-    ).fetchall()
+    db.execute(
+    "SELECT id, data, horario, descricao FROM eventos WHERE strftime('%Y-%m', data) = ? ORDER BY horario",
+    (f'{ano:04d}-{mes:02d}',)
+    )
+    eventos_mes = db.fetchall()
     db.close()
 
     # --- LÓGICA ATUALIZADA PARA AGRUPAR MÚLTIPLOS EVENTOS POR DIA ---
@@ -647,9 +661,10 @@ def calendario(ano=None, mes=None):
 def api_get_eventos(data):
     """Retorna todos os eventos de um dia específico em formato JSON."""
     db = get_db()
-    eventos = db.execute(
-        'SELECT id, horario, descricao FROM eventos WHERE data = ? ORDER BY horario', (data,)
-    ).fetchall()
+    db.execute(
+    'SELECT id, horario, descricao FROM eventos WHERE data = ? ORDER BY horario', (data,)
+    )
+    eventos = db.fetchall()
     db.close()
     # Converte a lista de resultados para JSON
     return jsonify([dict(ix) for ix in eventos])
