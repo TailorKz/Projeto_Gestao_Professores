@@ -70,7 +70,7 @@ def formatar_valor(value):
 def get_db():
     conn = get_db_connection()
     # Usar um cursor que retorna dicionários
-    return conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    return conn, conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
 # --- ROTA PRINCIPAL ---
 @app.route('/')
@@ -92,20 +92,23 @@ def adicionar_professor():
         cpf = request.form['cpf'] or None
         cnpj = request.form['cnpj'] or None
         dados_bancarios = request.form['dados_bancarios'] or None
-        db = get_db()
+        conn = get_db_connection()  
+        db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         db.execute(
         'INSERT INTO professores (nome, categoria, cpf, cnpj, dados_bancarios) VALUES (%s, %s, %s, %s, %s)',
         (nome, categoria, cpf, cnpj, dados_bancarios)
         )
-        db.commit()
+        conn.commit()
         db.close()
+        conn.close()
         flash('Professor adicionado com sucesso!', 'success')
         return redirect(url_for('index'))
     return render_template('adicionar_professor.html')
 
 @app.route('/professor/editar/<int:professor_id>', methods=['GET', 'POST'])
 def editar_professor(professor_id):
-    db = get_db()
+    conn = get_db_connection()
+    db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     db.execute('SELECT * FROM professores WHERE id = %s', (professor_id,))
     professor = db.fetchone()
     if request.method == 'POST':
@@ -118,19 +121,21 @@ def editar_professor(professor_id):
         'UPDATE professores SET nome = %s, categoria = %s, cpf = %s, cnpj = %s, dados_bancarios = %s WHERE id = %s',
         (nome, categoria, cpf, cnpj, dados_bancarios, professor_id)
         )
-        db.commit()
-        flash('Dados do professor atualizados com sucesso!', 'success')
+        conn.commit()
         db.close()
+        conn.close()
+        flash('Dados do professor atualizados com sucesso!', 'success')
         return redirect(url_for('detalhes_professor', professor_id=professor_id))
-    db.close()
     return render_template('editar_professor.html', professor=professor)
 
 @app.route('/professor/deletar/<int:professor_id>', methods=['POST'])
 def deletar_professor(professor_id):
-    db = get_db()
+    conn = get_db_connection()
+    db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     db.execute('DELETE FROM professores WHERE id = %s', (professor_id,))
-    db.commit()
+    conn.commit()
     db.close()
+    conn.close()
     flash('Professor apagado com sucesso.', 'success')
     return redirect(url_for('index'))
 
@@ -148,7 +153,8 @@ def detalhes_professor(professor_id):
 
 @app.route('/professor/<int:professor_id>/<int:ano>/<int:mes>', methods=['GET', 'POST'])
 def mes_detalhes(professor_id, ano, mes):
-    db = get_db()
+    conn = get_db_connection()
+    db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     db.execute('SELECT * FROM professores WHERE id = %s', (professor_id,))
     professor = db.fetchone()
     if professor is None: abort(404)
@@ -193,8 +199,9 @@ def mes_detalhes(professor_id, ano, mes):
                 except Exception as e:
                     flash(f"Erro ao fazer upload: {e}", "error")
         
-        db.commit()
+        conn.commit()
         db.close()
+        conn.close()
         flash('Documentos enviados com sucesso!', 'success')
         return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
 
@@ -214,7 +221,8 @@ def view_file(filename):
 
 @app.route('/documento/deletar/<int:doc_id>', methods=['POST'])
 def deletar_documento(doc_id):
-    db = get_db()
+    conn = get_db_connection()
+    db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     db.execute('SELECT * FROM documentos WHERE id = %s', (doc_id,))
     doc = db.fetchone()
     if doc:
@@ -223,12 +231,13 @@ def deletar_documento(doc_id):
         except Exception as e:
             flash(f'Erro ao apagar o arquivo da nuvem: {e}', 'error')
         db.execute('DELETE FROM documentos WHERE id = %s', (doc_id,))
-        db.commit()
+        conn.commit()
         flash('Documento apagado com sucesso.', 'success')
         professor_id = doc['professor_id']
         ano = doc['ano']
         mes = doc['mes']
         db.close()
+        conn.close()
         return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
     db.close()
     return redirect(url_for('index'))
@@ -317,13 +326,16 @@ def parcela_gastos(categoria, ano, parcela):
         valor_inicial_float = float(valor_inicial_str)
 
         # Verifica se já existe um registo para esta parcela
-        db.execute(
-        """
-        INSERT INTO parcelas (categoria, ano, parcela, valor_inicial) VALUES (%s, %s, %s, %s)
-        ON CONFLICT (categoria, ano, parcela) DO UPDATE SET valor_inicial = EXCLUDED.valor_inicial
-        """,
-        (categoria, ano, parcela, valor_inicial_float)
-    )
+        conn = get_db_connection()
+        db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        db.execute("""
+        INSERT INTO parcelas (categoria, ano, parcela,  valor_inicial) 
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (categoria, ano, parcela) 
+        DO UPDATE SET valor_inicial = EXCLUDED.valor_inicial
+        """, (categoria, ano, parcela, valor_inicial_float)
+        )
+
 
         # --- Lógica para salvar os gastos
         db.execute('DELETE FROM gastos WHERE categoria = %s AND ano = %s AND parcela = %s', (categoria, ano, parcela))
@@ -341,8 +353,9 @@ def parcela_gastos(categoria, ano, parcela):
                 except ValueError:
                     flash(f'Valor inválido "{valores[i]}" ignorado.', 'error')
         
-        db.commit()
+        conn.commit()
         db.close()
+        conn.close()
         flash('Gastos salvos com sucesso!', 'success')
         return redirect(url_for('parcela_gastos', categoria=categoria, ano=ano, parcela=parcela))
 
@@ -380,18 +393,20 @@ def uploaded_file(filename):
 
 @app.route('/gastos/deletar/<int:gasto_id>', methods=['POST'])
 def deletar_gasto(gasto_id):
-    db = get_db()
+    conn = get_db_connection()
+    db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     db.execute('SELECT * FROM gastos WHERE id = %s', (gasto_id,))
     gasto = db.fetchone()
     
     if gasto:
         db.execute('DELETE FROM gastos WHERE id = %s', (gasto_id,))
-        db.commit()
+        conn.commit()
         flash('Gasto apagado com sucesso.', 'success')
         categoria = gasto['categoria']
         ano = gasto['ano']
         parcela = gasto['parcela']
         db.close()
+        conn.close()
         return redirect(url_for('parcela_gastos', categoria=categoria, ano=ano, parcela=parcela))
     
     db.close()
@@ -418,13 +433,15 @@ def adicionar_emprestimo():
         if not data_retirada or not item or not responsavel:
             flash('Data de Retirada, Item e Responsável são campos obrigatórios.', 'error')
         else:
-            db = get_db()
+            conn = get_db_connection()
+            db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             db.execute(
                 'INSERT INTO emprestimos (data_retirada, item, responsavel, observacoes, data_devolucao) VALUES (%s, %s, %s, %s, NULL)',
                 (data_retirada, item, responsavel, observacoes)
             )
-            db.commit()
+            conn.commit()
             db.close()
+            conn.close()
             flash('Empréstimo registado com sucesso!', 'success')
             return redirect(url_for('emprestimos'))
     
@@ -433,7 +450,8 @@ def adicionar_emprestimo():
 
 @app.route('/emprestimos/editar/<int:emprestimo_id>', methods=['GET', 'POST'])
 def editar_emprestimo(emprestimo_id):
-    db = get_db()
+    conn = get_db_connection()
+    db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     db.execute('SELECT * FROM emprestimos WHERE id = %s', (emprestimo_id,))
     emprestimo = db.fetchone()
     db.close()
@@ -459,20 +477,24 @@ def editar_emprestimo(emprestimo_id):
                 'UPDATE emprestimos SET data_retirada = %s, item = %s, responsavel = %s, data_devolucao = %s, observacoes = %s WHERE id = %s',
                 (data_retirada, item, responsavel, data_devolucao, observacoes, emprestimo_id)
             )
-            db.commit()
-            db.close()
+            conn.commit() 
             flash('Empréstimo atualizado com sucesso!', 'success')
+            
+            db.close()
+            conn.close()
             return redirect(url_for('emprestimos'))
 
     return render_template('formulario_emprestimo.html', acao="Editar", emprestimo=emprestimo)
 
 @app.route('/emprestimos/deletar/<int:emprestimo_id>', methods=['POST'])
 def deletar_emprestimo(emprestimo_id):
-    db = get_db()
+    conn = get_db_connection()
+    db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     db.execute('DELETE FROM emprestimos WHERE id = %s', (emprestimo_id,))
-    db.commit()
-    db.close()
+    conn.commit()
     flash('Registo de empréstimo apagado com sucesso.', 'success')
+    db.close()
+    conn.close()
     return redirect(url_for('emprestimos'))
 
 # --- ROTA PARA A PÁGINA DE RELATÓRIOS
