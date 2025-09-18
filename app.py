@@ -94,8 +94,8 @@ def adicionar_professor():
         dados_bancarios = request.form['dados_bancarios'] or None
         db = get_db()
         db.execute(
-            'INSERT INTO professores (nome, categoria, cpf, cnpj, dados_bancarios) VALUES (?, ?, ?, ?, ?)',
-            (nome, categoria, cpf, cnpj, dados_bancarios)
+        'INSERT INTO professores (nome, categoria, cpf, cnpj, dados_bancarios) VALUES (%s, %s, %s, %s, %s)',
+        (nome, categoria, cpf, cnpj, dados_bancarios)
         )
         db.commit()
         db.close()
@@ -106,7 +106,7 @@ def adicionar_professor():
 @app.route('/professor/editar/<int:professor_id>', methods=['GET', 'POST'])
 def editar_professor(professor_id):
     db = get_db()
-    db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,))
+    db.execute('SELECT * FROM professores WHERE id = %s', (professor_id,))
     professor = db.fetchone()
     if request.method == 'POST':
         nome = request.form['nome']
@@ -115,8 +115,8 @@ def editar_professor(professor_id):
         cnpj = request.form['cnpj'] or None
         dados_bancarios = request.form['dados_bancarios'] or None
         db.execute(
-            'UPDATE professores SET nome = ?, categoria = ?, cpf = ?, cnpj = ?, dados_bancarios = ? WHERE id = ?',
-            (nome, categoria, cpf, cnpj, dados_bancarios, professor_id)
+        'UPDATE professores SET nome = %s, categoria = %s, cpf = %s, cnpj = %s, dados_bancarios = %s WHERE id = %s',
+        (nome, categoria, cpf, cnpj, dados_bancarios, professor_id)
         )
         db.commit()
         flash('Dados do professor atualizados com sucesso!', 'success')
@@ -128,7 +128,7 @@ def editar_professor(professor_id):
 @app.route('/professor/deletar/<int:professor_id>', methods=['POST'])
 def deletar_professor(professor_id):
     db = get_db()
-    db.execute('DELETE FROM professores WHERE id = ?', (professor_id,))
+    db.execute('DELETE FROM professores WHERE id = %s', (professor_id,))
     db.commit()
     db.close()
     flash('Professor apagado com sucesso.', 'success')
@@ -138,7 +138,7 @@ def deletar_professor(professor_id):
 @app.route('/professor/<int:professor_id>')
 def detalhes_professor(professor_id):
     db = get_db()
-    db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,))
+    db.execute('SELECT * FROM professores WHERE id = %s', (professor_id,))
     professor = db.fetchone()
     db.close()
     if professor is None: abort(404)
@@ -149,7 +149,7 @@ def detalhes_professor(professor_id):
 @app.route('/professor/<int:professor_id>/<int:ano>/<int:mes>', methods=['GET', 'POST'])
 def mes_detalhes(professor_id, ano, mes):
     db = get_db()
-    db.execute('SELECT * FROM professores WHERE id = ?', (professor_id,))
+    db.execute('SELECT * FROM professores WHERE id = %s', (professor_id,))
     professor = db.fetchone()
     if professor is None: abort(404)
     nome_mes = datetime.date(ano, mes, 1).strftime('%B').capitalize()
@@ -187,8 +187,8 @@ def mes_detalhes(professor_id, ano, mes):
                     s3_client.upload_file(caminho_temporario, BUCKET_NAME, nome_final_r2)
                     os.remove(caminho_temporario)
                     db.execute(
-                        'INSERT INTO documentos (professor_id, mes, ano, tipo_documento, caminho_arquivo, nf_numero, nf_data, nf_valor) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                        (professor_id, mes, ano, tipo, nome_final_r2, nf_numero, nf_data, nf_valor)
+                    'INSERT INTO documentos (professor_id, mes, ano, tipo_documento, caminho_arquivo, nf_numero, nf_data, nf_valor) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)',
+                    (professor_id, mes, ano, tipo, nome_final_r2, nf_numero, nf_data, nf_valor)
                     )
                 except Exception as e:
                     flash(f"Erro ao fazer upload: {e}", "error")
@@ -198,7 +198,7 @@ def mes_detalhes(professor_id, ano, mes):
         flash('Documentos enviados com sucesso!', 'success')
         return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
 
-    db.execute('SELECT * FROM documentos WHERE professor_id = ? AND mes = ? AND ano = ?', (professor_id, mes, ano))
+    db.execute('SELECT * FROM documentos WHERE professor_id = %s AND mes = %s AND ano = %s', (professor_id, mes, ano))
     docs_db = db.fetchall()
     documentos = {doc['tipo_documento']: doc for doc in docs_db}
     db.close()
@@ -215,14 +215,14 @@ def view_file(filename):
 @app.route('/documento/deletar/<int:doc_id>', methods=['POST'])
 def deletar_documento(doc_id):
     db = get_db()
-    db.execute('SELECT * FROM documentos WHERE id = ?', (doc_id,))
+    db.execute('SELECT * FROM documentos WHERE id = %s', (doc_id,))
     doc = db.fetchone()
     if doc:
         try:
             s3_client.delete_object(Bucket=BUCKET_NAME, Key=doc['caminho_arquivo'])
         except Exception as e:
             flash(f'Erro ao apagar o arquivo da nuvem: {e}', 'error')
-        db.execute('DELETE FROM documentos WHERE id = ?', (doc_id,))
+        db.execute('DELETE FROM documentos WHERE id = %s', (doc_id,))
         db.commit()
         flash('Documento apagado com sucesso.', 'success')
         professor_id = doc['professor_id']
@@ -318,12 +318,15 @@ def parcela_gastos(categoria, ano, parcela):
 
         # Verifica se já existe um registo para esta parcela
         db.execute(
-            'INSERT OR REPLACE INTO parcelas (categoria, ano, parcela, valor_inicial) VALUES (?, ?, ?, ?)',
-            (categoria, ano, parcela, valor_inicial_float)
-        )
+        """
+        INSERT INTO parcelas (categoria, ano, parcela, valor_inicial) VALUES (%s, %s, %s, %s)
+        ON CONFLICT (categoria, ano, parcela) DO UPDATE SET valor_inicial = EXCLUDED.valor_inicial
+        """,
+        (categoria, ano, parcela, valor_inicial_float)
+    )
 
         # --- Lógica para salvar os gastos
-        db.execute('DELETE FROM gastos WHERE categoria = ? AND ano = ? AND parcela = ?', (categoria, ano, parcela))
+        db.execute('DELETE FROM gastos WHERE categoria = %s AND ano = %s AND parcela = %s', (categoria, ano, parcela))
         descricoes = request.form.getlist('descricao[]')
         valores = request.form.getlist('valor[]')
 
@@ -332,8 +335,8 @@ def parcela_gastos(categoria, ano, parcela):
                 try:
                     valor_float = float(valores[i].replace('.', '').replace(',', '.'))
                     db.execute(
-                        'INSERT INTO gastos (categoria, ano, parcela, descricao, valor) VALUES (?, ?, ?, ?, ?)',
-                        (categoria, ano, parcela, descricoes[i], valor_float)
+                    'INSERT INTO gastos (categoria, ano, parcela, descricao, valor) VALUES (%s, %s, %s, %s, %s)',
+                    (categoria, ano, parcela, descricoes[i], valor_float)
                     )
                 except ValueError:
                     flash(f'Valor inválido "{valores[i]}" ignorado.', 'error')
@@ -345,7 +348,7 @@ def parcela_gastos(categoria, ano, parcela):
 
     # --- LÓGICA GET ATUALIZADA PARA LER O VALOR INICIAL DO BANCO DE DADOS ---
     db.execute(
-    'SELECT valor_inicial FROM parcelas WHERE categoria = ? AND ano = ? AND parcela = ?',
+    'SELECT valor_inicial FROM parcelas WHERE categoria = %s AND ano = %s AND parcela = %s',
     (categoria, ano, parcela)
     )
     parcela_info = db.fetchone()
@@ -357,7 +360,7 @@ def parcela_gastos(categoria, ano, parcela):
         valor_inicial = valores_padrao.get(categoria, 0)
 
     db.execute(
-    'SELECT * FROM gastos WHERE categoria = ? AND ano = ? AND parcela = ? ORDER BY id',
+    'SELECT * FROM gastos WHERE categoria = %s AND ano = %s AND parcela = %s ORDER BY id',
     (categoria, ano, parcela)
     )
     gastos = db.fetchall()
@@ -378,11 +381,11 @@ def uploaded_file(filename):
 @app.route('/gastos/deletar/<int:gasto_id>', methods=['POST'])
 def deletar_gasto(gasto_id):
     db = get_db()
-    db.execute('SELECT * FROM gastos WHERE id = ?', (gasto_id,))
+    db.execute('SELECT * FROM gastos WHERE id = %s', (gasto_id,))
     gasto = db.fetchone()
     
     if gasto:
-        db.execute('DELETE FROM gastos WHERE id = ?', (gasto_id,))
+        db.execute('DELETE FROM gastos WHERE id = %s', (gasto_id,))
         db.commit()
         flash('Gasto apagado com sucesso.', 'success')
         categoria = gasto['categoria']
@@ -417,7 +420,7 @@ def adicionar_emprestimo():
         else:
             db = get_db()
             db.execute(
-                'INSERT INTO emprestimos (data_retirada, item, responsavel, observacoes, data_devolucao) VALUES (?, ?, ?, ?, NULL)',
+                'INSERT INTO emprestimos (data_retirada, item, responsavel, observacoes, data_devolucao) VALUES (%s, %s, %s, %s, NULL)',
                 (data_retirada, item, responsavel, observacoes)
             )
             db.commit()
@@ -431,7 +434,7 @@ def adicionar_emprestimo():
 @app.route('/emprestimos/editar/<int:emprestimo_id>', methods=['GET', 'POST'])
 def editar_emprestimo(emprestimo_id):
     db = get_db()
-    db.execute('SELECT * FROM emprestimos WHERE id = ?', (emprestimo_id,))
+    db.execute('SELECT * FROM emprestimos WHERE id = %s', (emprestimo_id,))
     emprestimo = db.fetchone()
     db.close()
 
@@ -453,7 +456,7 @@ def editar_emprestimo(emprestimo_id):
         else:
             db = get_db()
             db.execute(
-                'UPDATE emprestimos SET data_retirada = ?, item = ?, responsavel = ?, data_devolucao = ?, observacoes = ? WHERE id = ?',
+                'UPDATE emprestimos SET data_retirada = %s, item = %s, responsavel = %s, data_devolucao = %s, observacoes = %s WHERE id = %s',
                 (data_retirada, item, responsavel, data_devolucao, observacoes, emprestimo_id)
             )
             db.commit()
@@ -466,7 +469,7 @@ def editar_emprestimo(emprestimo_id):
 @app.route('/emprestimos/deletar/<int:emprestimo_id>', methods=['POST'])
 def deletar_emprestimo(emprestimo_id):
     db = get_db()
-    db.execute('DELETE FROM emprestimos WHERE id = ?', (emprestimo_id,))
+    db.execute('DELETE FROM emprestimos WHERE id = %s', (emprestimo_id,))
     db.commit()
     db.close()
     flash('Registo de empréstimo apagado com sucesso.', 'success')
@@ -487,14 +490,14 @@ def relatorio():
             SELECT p.nome, d.mes, d.nf_numero, d.nf_data, d.nf_valor
             FROM documentos d
             JOIN professores p ON d.professor_id = p.id
-            WHERE d.tipo_documento = 'NF' AND d.ano = ?
+            WHERE d.tipo_documento = 'NF' AND d.ano = %s
         """
         params = [ano]
         if tipo_periodo == 'mensal' and mes:
-            query += " AND d.mes = ?"
+            query += " AND d.mes = %s"
             params.append(int(mes))
         if professor_id != 'todos':
-            query += " AND p.id = ?"
+            query += " AND p.id = %s"
             params.append(int(professor_id))
         query += " ORDER BY p.nome, d.mes"
         db.execute(query, tuple(params))
@@ -545,7 +548,7 @@ def relatorio():
             nome_professor = "Todos os Professores"
             if professor_id != 'todos':
                 db = get_db()
-                db.execute('SELECT nome FROM professores WHERE id = ?', (professor_id,))
+                db.execute('SELECT nome FROM professores WHERE id = %s', (professor_id,))
                 prof = db.fetchone()
                 db.close()
                 if prof:
@@ -631,7 +634,7 @@ def calendario(ano=None, mes=None):
 
     db = get_db()
     db.execute(
-    "SELECT id, data, horario, descricao FROM eventos WHERE strftime('%Y-%m', data) = ? ORDER BY horario",
+    "SELECT id, data, horario, descricao FROM eventos WHERE to_char(data, 'YYYY-MM') = %s ORDER BY horario",
     (f'{ano:04d}-{mes:02d}',)
     )
     eventos_mes = db.fetchall()
@@ -662,7 +665,7 @@ def api_get_eventos(data):
     """Retorna todos os eventos de um dia específico em formato JSON."""
     db = get_db()
     db.execute(
-    'SELECT id, horario, descricao FROM eventos WHERE data = ? ORDER BY horario', (data,)
+    'SELECT id, horario, descricao FROM eventos WHERE data = %s ORDER BY horario', (data,)
     )
     eventos = db.fetchall()
     db.close()
@@ -682,7 +685,7 @@ def api_adicionar_evento():
 
     db = get_db()
     db.execute(
-        'INSERT INTO eventos (data, horario, descricao) VALUES (?, ?, ?)',
+        'INSERT INTO eventos (data, horario, descricao) VALUES (%s, %s, %s)',
         (data, horario, descricao)
     )
     db.commit()
@@ -693,7 +696,7 @@ def api_adicionar_evento():
 def api_deletar_evento(evento_id):
     """Apaga um evento específico pelo seu ID."""
     db = get_db()
-    db.execute('DELETE FROM eventos WHERE id = ?', (evento_id,))
+    db.execute('DELETE FROM eventos WHERE id = %s', (evento_id,))
     db.commit()
     db.close()
     return jsonify({'status': 'sucesso', 'mensagem': 'Evento apagado.'})
