@@ -25,11 +25,11 @@ def criar_tabelas():
             );
             CREATE TABLE IF NOT EXISTS gastos (
                 id SERIAL PRIMARY KEY, categoria TEXT NOT NULL, ano INTEGER NOT NULL,
-                parcela INTEGER NOT NULL, descricao TEXT, valor REAL
+                parcela INTEGER NOT NULL, descricao TEXT, valor NUMERIC(10, 2)
             );
             CREATE TABLE IF NOT EXISTS parcelas (
                 id SERIAL PRIMARY KEY, categoria TEXT NOT NULL, ano INTEGER NOT NULL,
-                parcela INTEGER NOT NULL, valor_inicial REAL NOT NULL,
+                parcela INTEGER NOT NULL, valor_inicial NUMERIC(10, 2) NOT NULL,
                 UNIQUE(categoria, ano, parcela)
             );
             CREATE TABLE IF NOT EXISTS emprestimos (

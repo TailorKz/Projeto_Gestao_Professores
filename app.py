@@ -65,7 +65,7 @@ if CLOUDFLARE_ACCOUNT_ID:
 def formatar_valor(value):
     if value is None: return "0,00"
     try:
-        return format_decimal(value, locale='pt_BR')
+        return format_decimal(value, format='#,##0.00', locale='pt_BR')
     except (ValueError, TypeError):
         return value
 
