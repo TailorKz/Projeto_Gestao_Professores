@@ -361,7 +361,7 @@ def parcela_gastos(categoria, ano, parcela):
                     valor_decimal = Decimal(valores[i].replace('.', '').replace(',', '.'))
                     db.execute(
                     'INSERT INTO gastos (categoria, ano, parcela, descricao, valor) VALUES (%s, %s, %s, %s, %s)',
-                    (categoria, ano, parcela, descricoes[i], valor_float)
+                    (categoria, ano, parcela, descricoes[i], valor_decimal)
                     )
                 except ValueError:
                     flash(f'Valor inválido "{valores[i]}" ignorado.', 'error')
