@@ -1,86 +1,50 @@
-import sqlite3
+import os
+import psycopg2
 
-def criar_banco():
-    # Conecta à base de dados (cria o ficheiro se não existir)
-    conn = sqlite3.connect('gestor.db')
-    cursor = conn.cursor()
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-    # CRIA A TABELA DE PROFESSORES (estrutura)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS professores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            categoria TEXT NOT NULL, -- 'Cultura' ou 'Esporte'
-            cpf TEXT,
-            cnpj TEXT,
-            dados_bancarios TEXT
-        );
-    ''')
+def get_db_connection():
+    conn = psycopg2.connect(DATABASE_URL)
+    return conn
 
-    # CRIA A TABELA DE DOCUMENTOS (estrutura)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS documentos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            professor_id INTEGER NOT NULL,
-            mes INTEGER NOT NULL,
-            ano INTEGER NOT NULL,
-            tipo_documento TEXT NOT NULL,
-            caminho_arquivo TEXT NOT NULL,
-            nf_numero TEXT,
-            nf_data TEXT,
-            nf_tipo TEXT,
-            nf_valor REAL,
-            FOREIGN KEY (professor_id) REFERENCES professores (id)
-        );
-    ''')
-
-    # CRIA A TABELA DE GASTOS (estrutura)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS gastos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            categoria TEXT NOT NULL,
-            ano INTEGER NOT NULL,
-            parcela INTEGER NOT NULL,
-            descricao TEXT,
-            valor REAL
-        );
-    ''')
-    
-    # CRIA A TABELA DAS PARCELAS (estrutura)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parcelas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            categoria TEXT NOT NULL,
-            ano INTEGER NOT NULL,
-            parcela INTEGER NOT NULL,
-            valor_inicial REAL NOT NULL,
-            UNIQUE(categoria, ano, parcela)
-        );
-    ''')
-
-    # CRIA A TABELA DE EMPRÉSTIMOS (estrutura)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS emprestimos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            data_retirada TEXT NOT NULL,
-            item TEXT NOT NULL,
-            responsavel TEXT NOT NULL,
-            data_devolucao TEXT,
-            observacoes TEXT
-        );
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS eventos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            data TEXT NOT NULL,          -- Formato YYYY-MM-DD
-            horario TEXT,                -- Opcional, para a hora do evento
-            descricao TEXT NOT NULL
-        );
-    ''')
-    print("Tabelas criadas com sucesso. A base de dados está pronta e vazia.")
-
-    conn.close()
-
-if __name__ == '__main__':
-    criar_banco()
+def criar_tabelas():
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS professores (
+                id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL,
+                cpf TEXT, cnpj TEXT, dados_bancarios TEXT
+            );
+            CREATE TABLE IF NOT EXISTS documentos (
+                id SERIAL PRIMARY KEY, professor_id INTEGER NOT NULL, mes INTEGER NOT NULL,
+                ano INTEGER NOT NULL, tipo_documento TEXT NOT NULL, caminho_arquivo TEXT NOT NULL,
+                nf_numero TEXT, nf_data TEXT, nf_tipo TEXT, nf_valor REAL,
+                FOREIGN KEY (professor_id) REFERENCES professores (id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS gastos (
+                id SERIAL PRIMARY KEY, categoria TEXT NOT NULL, ano INTEGER NOT NULL,
+                parcela INTEGER NOT NULL, descricao TEXT, valor REAL
+            );
+            CREATE TABLE IF NOT EXISTS parcelas (
+                id SERIAL PRIMARY KEY, categoria TEXT NOT NULL, ano INTEGER NOT NULL,
+                parcela INTEGER NOT NULL, valor_inicial REAL NOT NULL,
+                UNIQUE(categoria, ano, parcela)
+            );
+            CREATE TABLE IF NOT EXISTS emprestimos (
+                id SERIAL PRIMARY KEY, data_retirada TEXT NOT NULL, item TEXT NOT NULL,
+                responsavel TEXT NOT NULL, data_devolucao TEXT, observacoes TEXT
+            );
+            CREATE TABLE IF NOT EXISTS eventos (
+                id SERIAL PRIMARY KEY, data TEXT NOT NULL, horario TEXT, descricao TEXT NOT NULL
+            );
+        ''')
+        conn.commit()
+        cursor.close()
+        print("Tabelas verificadas/criadas com sucesso no PostgreSQL.")
+    except Exception as e:
+        print(f"Erro ao criar tabelas: {e}")
+    finally:
+        if conn is not None:
+            conn.close()

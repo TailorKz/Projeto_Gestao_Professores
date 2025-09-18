@@ -1,6 +1,5 @@
-import sqlite3
 import locale
-from flask import Flask, render_template, abort, url_for, request, redirect, flash, jsonify, send_file, send_from_directory
+from flask import Flask, render_template, abort, url_for, request, redirect, flash, jsonify, send_file
 import datetime
 import os
 from werkzeug.utils import secure_filename
@@ -13,8 +12,9 @@ from docx import Document
 import calendar
 import boto3
 from botocore.exceptions import NoCredentialsError
-from database import criar_banco
+from database import get_db_connection, criar_tabelas
 from babel.numbers import format_decimal
+import psycopg2.extras
 
 # --- CONFIGURAÇÃO DE CAMINHO DINÂMICO ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -25,22 +25,22 @@ try:
 except locale.Error:
     print("AVISO: Locale 'pt_BR.UTF-8' não encontrado.")
 
+try:
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+except locale.Error:
+    print("AVISO: Locale 'pt_BR.UTF-8' não encontrado.")
+
 app = Flask(__name__)
-DATABASE = os.path.join(BASE_DIR, 'gestor.db')
 app.config['SECRET_KEY'] = 'uma-chave-secreta-muito-dificil'
 UPLOAD_FOLDER = '/tmp/uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# Verifica e cria a base de dados se não existir
-if not os.path.exists(DATABASE):
-    print("Base de dados não encontrada, a criar...")
-    try:
-        criar_banco()
-        print("Base de dados criada com sucesso.")
-    except Exception as e:
-        print(f"Erro ao criar a base de dados: {e}")
+# Cria as tabelas da base de dados no arranque, se necessário
+try:
+    criar_tabelas()
+except Exception as e:
+    print(f"Ocorreu um erro ao inicializar a base de dados: {e}")
 
 # --- CONFIGURAÇÃO DO CLOUDFLARE R2 ---
 CLOUDFLARE_ACCOUNT_ID = os.environ.get('CLOUDFLARE_ACCOUNT_ID')
@@ -59,7 +59,6 @@ if CLOUDFLARE_ACCOUNT_ID:
         region_name='auto'
     )
 
-
 @app.template_filter('formatar_valor')
 def formatar_valor(value):
     if value is None: return "0,00"
@@ -69,9 +68,9 @@ def formatar_valor(value):
         return value
 
 def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    conn = get_db_connection()
+    # Usar um cursor que retorna dicionários
+    return conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
 # --- ROTA PRINCIPAL ---
 @app.route('/')
