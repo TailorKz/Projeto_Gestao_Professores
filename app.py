@@ -15,7 +15,7 @@ from botocore.exceptions import NoCredentialsError
 from database import get_db_connection, criar_tabelas
 from babel.numbers import format_decimal
 import psycopg2.extras
-from docx2pdf import convert
+import subprocess
 
 # --- CONFIGURAÇÃO DE CAMINHO DINÂMICO ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -282,12 +282,19 @@ def converter_word():
             input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename_seguro)
             word_file.save(input_path)
 
-            output_filename = os.path.splitext(filename_seguro)[0] + '.pdf'
-            output_path = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+            output_dir = app.config['UPLOAD_FOLDER']
+
             try:
-                convert(input_path, output_path)
-                os.remove(input_path)
-                return send_from_directory(app.config['UPLOAD_FOLDER'], output_filename, as_attachment=True)
+                # Comando para executar a conversão com o LibreOffice
+                subprocess.run(
+                    ['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', output_dir, input_path],
+                    check=True
+                )
+                os.remove(input_path) # Remove o ficheiro .docx original
+
+                output_filename = os.path.splitext(filename_seguro)[0] + '.pdf'
+                return send_from_directory(output_dir, output_filename, as_attachment=True)
+
             except Exception as e:
                 flash(f'Ocorreu um erro durante a conversão: {e}', 'error')
                 if os.path.exists(input_path):

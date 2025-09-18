@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-por \
+    libreoffice-writer \
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
