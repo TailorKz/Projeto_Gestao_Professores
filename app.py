@@ -1,5 +1,5 @@
 import locale
-from flask import Flask, render_template, abort, url_for, request, redirect, flash, jsonify, send_file
+from flask import Flask, render_template, abort, url_for, request, redirect, flash, jsonify, send_file, send_from_directory
 import datetime
 import os
 from werkzeug.utils import secure_filename
@@ -15,6 +15,7 @@ from botocore.exceptions import NoCredentialsError
 from database import get_db_connection, criar_tabelas
 from babel.numbers import format_decimal
 import psycopg2.extras
+from docx2pdf import convert
 
 # --- CONFIGURAÇÃO DE CAMINHO DINÂMICO ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
