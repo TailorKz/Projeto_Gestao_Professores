@@ -170,27 +170,29 @@
             }
         }
 
-        function calcularTotais() {
-            const valorInicialStr = document.getElementById('valor-inicial-input').value.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
-            const valorInicial = parseFloat(valorInicialStr) || 0;
+       function calcularTotais() {
+    // Lógica para o valor inicial (já está correta)
+    const valorInicialStr = document.getElementById('valor-inicial-input').value.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
+    const valorInicial = parseFloat(valorInicialStr) || 0;
 
-            let totalGasto = 0;
-            const camposValor = document.querySelectorAll('.valor');
-            camposValor.forEach(function(campo) {
-                const valorStr = campo.value.trim().replace(/\./g, '').replace(',', '.');
-                if (valorStr) {
-                    totalGasto += parseFloat(valorStr) || 0;
-                }
-            });
-
-            const saldo = valorInicial - totalGasto;
-            const formatador = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-            
-            document.getElementById('total-gasto').innerText = formatador.format(totalGasto);
-            const saldoEl = document.getElementById('saldo');
-            saldoEl.innerText = formatador.format(saldo);
-            saldoEl.classList.toggle('negativo', saldo < 0);
+    let totalGastoCentavos = 0;
+    const camposValor = document.querySelectorAll('.valor');
+    camposValor.forEach(function(campo) {
+        const valorStr = campo.value.trim().replace(/\./g, '').replace(',', '.');
+        if (valorStr) {
+            totalGastoCentavos += Math.round(parseFloat(valorStr) * 100);
         }
+    });
+
+    const totalGasto = totalGastoCentavos / 100; 
+    const saldo = valorInicial - totalGasto;
+    const formatador = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    document.getElementById('total-gasto').innerText = formatador.format(totalGasto);
+    const saldoEl = document.getElementById('saldo');
+    saldoEl.innerText = formatador.format(saldo);
+    saldoEl.classList.toggle('negativo', saldo < 0);
+}
 
         function adicionarListeners() {
             document.getElementById('valor-inicial-input').addEventListener('input', calcularTotais);
