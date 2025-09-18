@@ -75,10 +75,11 @@ def get_db():
 # --- ROTA PRINCIPAL ---
 @app.route('/')
 def index():
-    db = get_db()
+    conn, db = get_db()
     db.execute('SELECT * FROM professores ORDER BY nome') # 1. Executar a consulta
     professores_db = db.fetchall()                      # 2. Obter os resultados
     db.close()
+    conn.close()
     professores_cultura = [p for p in professores_db if p['categoria'] == 'Cultura']
     professores_esporte = [p for p in professores_db if p['categoria'] == 'Esporte']
     return render_template('index.html', cultura=professores_cultura, esporte=professores_esporte)
@@ -142,10 +143,11 @@ def deletar_professor(professor_id):
 # --- ROTAS DE DETALHES, UPLOAD E VISUALIZAÇÃO ---
 @app.route('/professor/<int:professor_id>')
 def detalhes_professor(professor_id):
-    db = get_db()
+    conn, db = get_db() 
     db.execute('SELECT * FROM professores WHERE id = %s', (professor_id,))
     professor = db.fetchone()
     db.close()
+    conn.close()
     if professor is None: abort(404)
     anos = [datetime.datetime.now().year + i for i in range(3)]
     meses = [(m, datetime.date(2000, m, 1).strftime('%B').capitalize()) for m in range(1, 13)]
@@ -240,6 +242,7 @@ def deletar_documento(doc_id):
         conn.close()
         return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
     db.close()
+    conn.close()
     return redirect(url_for('index'))
 
 @app.route('/ferramentas')
@@ -318,7 +321,7 @@ def gastos_por_categoria(categoria):
 
 @app.route('/controle-gastos/<categoria>/<int:ano>/<int:parcela>', methods=['GET', 'POST'])
 def parcela_gastos(categoria, ano, parcela):
-    db = get_db()
+    conn, db = get_db() # Desempacotar aqui
 
     if request.method == 'POST':
         # --- LÓGICA PARA SALVAR O VALOR INICIAL ---
@@ -410,16 +413,18 @@ def deletar_gasto(gasto_id):
         return redirect(url_for('parcela_gastos', categoria=categoria, ano=ano, parcela=parcela))
     
     db.close()
+    conn.close()
     flash('Gasto não encontrado.', 'error')
     return redirect(url_for('controle_gastos_index'))
 
 @app.route('/emprestimos')
 def emprestimos():
-    db = get_db()
+    conn, db = get_db()
     # Pega todos os empréstimos, os mais recentes primeiro
     db.execute('SELECT * FROM emprestimos ORDER BY data_retirada DESC')
     lista_emprestimos = db.fetchall()
     db.close()
+    conn.close()
     return render_template('emprestimos.html', emprestimos=lista_emprestimos)
 
 @app.route('/emprestimos/adicionar', methods=['GET', 'POST'])
@@ -627,10 +632,11 @@ def relatorio():
             )
 
     # Lógica GET para exibir a página
-    db = get_db()
+    conn, db = get_db()
     db.execute('SELECT id, nome FROM professores ORDER BY nome')
     professores = db.fetchall()
     db.close()
+    conn.close()
     ano_atual = datetime.datetime.now().year
     anos = [ano_atual + i for i in range(3)] 
     meses = [(m, datetime.date(2000, m, 1).strftime('%B').capitalize()) for m in range(1, 13)]
@@ -654,13 +660,14 @@ def calendario(ano=None, mes=None):
     cal = calendar.Calendar()
     semanas = cal.monthdatescalendar(ano, mes)
 
-    db = get_db()
+    conn, db = get_db()
     db.execute(
     "SELECT id, data, horario, descricao FROM eventos WHERE to_char(data, 'YYYY-MM') = %s ORDER BY horario",
     (f'{ano:04d}-{mes:02d}',)
     )
     eventos_mes = db.fetchall()
     db.close()
+    conn.close()
 
     # --- LÓGICA ATUALIZADA PARA AGRUPAR MÚLTIPLOS EVENTOS POR DIA ---
     eventos_mapa = {}
@@ -685,12 +692,13 @@ def calendario(ano=None, mes=None):
 @app.route('/api/eventos/<data>')
 def api_get_eventos(data):
     """Retorna todos os eventos de um dia específico em formato JSON."""
-    db = get_db()
+    conn, db = get_db()
     db.execute(
     'SELECT id, horario, descricao FROM eventos WHERE data = %s ORDER BY horario', (data,)
     )
     eventos = db.fetchall()
     db.close()
+    conn.close()
     # Converte a lista de resultados para JSON
     return jsonify([dict(ix) for ix in eventos])
 
