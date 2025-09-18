@@ -486,16 +486,17 @@ def editar_emprestimo(emprestimo_id):
         if not data_retirada or not item or not responsavel:
             flash('Data de Retirada, Item e Responsável são campos obrigatórios.', 'error')
         else:
-            db = get_db()
+            conn_update = get_db_connection()
+            db_update = conn_update.cursor(cursor_factory=psycopg2.extras.DictCursor)
             db.execute(
                 'UPDATE emprestimos SET data_retirada = %s, item = %s, responsavel = %s, data_devolucao = %s, observacoes = %s WHERE id = %s',
                 (data_retirada, item, responsavel, data_devolucao, observacoes, emprestimo_id)
             )
-            conn.commit() 
+            conn_update.commit()
             flash('Empréstimo atualizado com sucesso!', 'success')
             
-            db.close()
-            conn.close()
+            db_update.close()
+            conn_update.close()
             return redirect(url_for('emprestimos'))
 
     return render_template('formulario_emprestimo.html', acao="Editar", emprestimo=emprestimo)
