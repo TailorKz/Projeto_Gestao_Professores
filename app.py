@@ -31,11 +31,11 @@ except locale.Error:
     print("AVISO: Locale 'pt_BR.UTF-8' não encontrado.")
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['SECRET_KEY'] = 'uma-chave-secreta-muito-dificil'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key')
 UPLOAD_FOLDER = '/tmp/uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Cria as tabelas da base de dados no arranque, se necessário
 try:
