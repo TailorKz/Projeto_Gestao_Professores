@@ -464,11 +464,11 @@ def adicionar_emprestimo():
 
 @app.route('/emprestimos/editar/<int:emprestimo_id>', methods=['GET', 'POST'])
 def editar_emprestimo(emprestimo_id):
-    conn = get_db_connection()
-    db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    db.execute('SELECT * FROM emprestimos WHERE id = %s', (emprestimo_id,))
-    emprestimo = db.fetchone()
-    db.close()
+    # Primeiro busca o empréstimo
+    with get_db_connection() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as db:
+            db.execute('SELECT * FROM emprestimos WHERE id = %s', (emprestimo_id,))
+            emprestimo = db.fetchone()
 
     if emprestimo is None:
         abort(404)
@@ -477,29 +477,35 @@ def editar_emprestimo(emprestimo_id):
         data_retirada = request.form['data_retirada']
         item = request.form['item']
         responsavel = request.form['responsavel']
-        data_devolucao = request.form.get('data_devolucao') # .get para ser seguro caso não exista
+        data_devolucao = request.form.get('data_devolucao')  # pode ser None
         observacoes = request.form['observacoes']
 
-        if not data_devolucao: # Se o campo for deixado vazio, guarda como NULL
+        if not data_devolucao:
             data_devolucao = None
 
         if not data_retirada or not item or not responsavel:
             flash('Data de Retirada, Item e Responsável são campos obrigatórios.', 'error')
         else:
-            conn_update = get_db_connection()
-            db_update = conn_update.cursor(cursor_factory=psycopg2.extras.DictCursor)
-            db.execute(
-                'UPDATE emprestimos SET data_retirada = %s, item = %s, responsavel = %s, data_devolucao = %s, observacoes = %s WHERE id = %s',
-                (data_retirada, item, responsavel, data_devolucao, observacoes, emprestimo_id)
-            )
-            conn_update.commit()
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as db:
+                    db.execute(
+                        '''
+                        UPDATE emprestimos
+                        SET data_retirada = %s,
+                            item = %s,
+                            responsavel = %s,
+                            data_devolucao = %s,
+                            observacoes = %s
+                        WHERE id = %s
+                        ''',
+                        (data_retirada, item, responsavel, data_devolucao, observacoes, emprestimo_id)
+                    )
+                    conn.commit()
             flash('Empréstimo atualizado com sucesso!', 'success')
-            
-            db_update.close()
-            conn_update.close()
             return redirect(url_for('emprestimos'))
 
     return render_template('formulario_emprestimo.html', acao="Editar", emprestimo=emprestimo)
+
 
 @app.route('/emprestimos/deletar/<int:emprestimo_id>', methods=['POST'])
 def deletar_emprestimo(emprestimo_id):
