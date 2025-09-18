@@ -16,6 +16,7 @@ from database import get_db_connection, criar_tabelas
 from babel.numbers import format_decimal
 import psycopg2.extras
 import subprocess
+from decimal import Decimal
 
 # --- CONFIGURAÇÃO DE CAMINHO DINÂMICO ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -335,7 +336,7 @@ def parcela_gastos(categoria, ano, parcela):
     if request.method == 'POST':
         # --- LÓGICA PARA SALVAR O VALOR INICIAL ---
         valor_inicial_str = request.form.get('valor_inicial').replace('R$', '').strip().replace('.', '').replace(',', '.')
-        valor_inicial_float = float(valor_inicial_str)
+        valor_inicial_decimal = Decimal(valor_inicial_str)
 
         # Verifica se já existe um registo para esta parcela
         conn = get_db_connection()
@@ -357,7 +358,7 @@ def parcela_gastos(categoria, ano, parcela):
         for i in range(len(descricoes)):
             if descricoes[i] and valores[i]:
                 try:
-                    valor_float = float(valores[i].replace('.', '').replace(',', '.'))
+                    valor_decimal = Decimal(valores[i].replace('.', '').replace(',', '.'))
                     db.execute(
                     'INSERT INTO gastos (categoria, ano, parcela, descricao, valor) VALUES (%s, %s, %s, %s, %s)',
                     (categoria, ano, parcela, descricoes[i], valor_float)
