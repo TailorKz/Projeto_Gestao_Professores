@@ -576,10 +576,11 @@ def relatorio():
 
             nome_professor = "Todos os Professores"
             if professor_id != 'todos':
-                db = get_db()
+                conn, db = get_db()
                 db.execute('SELECT nome FROM professores WHERE id = %s', (professor_id,))
                 prof = db.fetchone()
                 db.close()
+                conn.close()
                 if prof:
                     nome_professor = prof['nome']
             
@@ -715,22 +716,24 @@ def api_adicionar_evento():
     if not data or not descricao:
         return jsonify({'status': 'erro', 'mensagem': 'Data e descrição são obrigatórias.'}), 400
 
-    db = get_db()
+    conn, db = get_db()
     db.execute(
         'INSERT INTO eventos (data, horario, descricao) VALUES (%s, %s, %s)',
         (data, horario, descricao)
     )
-    db.commit()
+    conn.commit()
+    conn.close()
     db.close()
     return jsonify({'status': 'sucesso', 'mensagem': 'Evento adicionado!'})
 
 @app.route('/api/eventos/deletar/<int:evento_id>', methods=['POST'])
 def api_deletar_evento(evento_id):
     """Apaga um evento específico pelo seu ID."""
-    db = get_db()
+    conn, db = get_db()
     db.execute('DELETE FROM eventos WHERE id = %s', (evento_id,))
-    db.commit()
+    conn.commit()
     db.close()
+    conn.close()
     return jsonify({'status': 'sucesso', 'mensagem': 'Evento apagado.'})
 
 if __name__ == '__main__':
