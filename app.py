@@ -31,6 +31,7 @@ except locale.Error:
     print("AVISO: Locale 'pt_BR.UTF-8' não encontrado.")
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SECRET_KEY'] = 'uma-chave-secreta-muito-dificil'
 UPLOAD_FOLDER = '/tmp/uploads'
 if not os.path.exists(UPLOAD_FOLDER):
@@ -512,7 +513,7 @@ def relatorio():
         formato = request.form.get('formato')
         mes = request.form.get('mes')
 
-        db = get_db()
+        conn, db = get_db()
         query = """
             SELECT p.nome, d.mes, d.nf_numero, d.nf_data, d.nf_valor
             FROM documentos d
@@ -530,6 +531,7 @@ def relatorio():
         db.execute(query, tuple(params))
         resultados = db.fetchall()
         db.close()
+        conn.close()
 
         if not resultados:
             flash('Nenhum dado encontrado para os filtros selecionados.', 'error')
