@@ -171,9 +171,8 @@
         }
 
        function calcularTotais() {
-    // Lógica para o valor inicial (já está correta)
     const valorInicialStr = document.getElementById('valor-inicial-input').value.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
-    const valorInicial = parseFloat(valorInicialStr) || 0;
+    const valorInicialCentavos = Math.round(parseFloat(valorInicialStr) * 100) || 0;
 
     let totalGastoCentavos = 0;
     const camposValor = document.querySelectorAll('.valor');
@@ -184,8 +183,13 @@
         }
     });
 
-    const totalGasto = totalGastoCentavos / 100; 
-    const saldo = valorInicial - totalGasto;
+    // Calcula o saldo em centavos
+    const saldoCentavos = valorInicialCentavos - totalGastoCentavos;
+
+    // Converte os valores finais de volta para a unidade principal apenas para exibição
+    const totalGasto = totalGastoCentavos / 100;
+    const saldo = saldoCentavos / 100;
+
     const formatador = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
     document.getElementById('total-gasto').innerText = formatador.format(totalGasto);
