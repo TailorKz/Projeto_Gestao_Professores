@@ -908,6 +908,49 @@ def api_deletar_excecao(excecao_id):
     db.close()
     conn.close()
     return jsonify({'status': 'sucesso'})
+@app.route('/ginasios/jogador/editar/<int:jogador_id>', methods=['GET', 'POST'])
+def editar_jogador(jogador_id):
+    conn, db = get_db()
+
+    if request.method == 'POST':
+        ginasio_id = request.form['ginasio_id']
+        nome = request.form['nome']
+        dia_semana = request.form['dia_semana']
+        horario = request.form['horario']
+
+        db.execute(
+            "UPDATE jogadores SET ginasio_id = %s, nome = %s, dia_semana = %s, horario = %s WHERE id = %s",
+            (ginasio_id, nome, dia_semana, horario, jogador_id)
+        )
+        conn.commit()
+        db.close()
+        conn.close()
+        flash('Jogador atualizado com sucesso!', 'success')
+        return redirect(url_for('controle_ginasio'))
+
+    # Lógica GET
+    db.execute("SELECT * FROM jogadores WHERE id = %s", (jogador_id,))
+    jogador = db.fetchone()
+    db.execute("SELECT * FROM ginasios")
+    ginasios = db.fetchall()
+    db.close()
+    conn.close()
+
+    if jogador is None:
+        abort(404)
+
+    return render_template('editar_jogador.html', jogador=jogador, ginasios=ginasios)
+
+@app.route('/ginasios/jogador/deletar/<int:jogador_id>', methods=['POST'])
+def deletar_jogador(jogador_id):
+    # Usamos "soft delete" para não perder o histórico de cobranças
+    conn, db = get_db()
+    db.execute("UPDATE jogadores SET ativo = FALSE WHERE id = %s", (jogador_id,))
+    conn.commit()
+    db.close()
+    conn.close()
+    flash('Jogador apagado com sucesso.', 'success')
+    return redirect(url_for('controle_ginasio'))
 
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):

@@ -78,6 +78,10 @@
                                 <td>{{ jogador.nome }}</td>
                                 <td>{{ jogador.horario }}</td>
                                 <td>
+                                    <a href="{{ url_for('editar_jogador', jogador_id=jogador.id) }}" style="text-decoration: none;">✏️ Editar</a>
+                                        <form action="{{ url_for('deletar_jogador', jogador_id=jogador.id) }}" method="post" style="display:inline; margin-left: 10px;" onsubmit="return confirm('Tem a certeza que quer apagar este jogador?');">
+                                        <button type="submit" style="background:none; border:none; color:red; cursor:pointer; padding:0;">🗑️ Apagar</button>
+                                            </form>
                                     </td>
                             </tr>
                         {% else %}
