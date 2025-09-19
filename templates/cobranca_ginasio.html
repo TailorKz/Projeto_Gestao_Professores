@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Cobrança do Ginásio</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .back-link, .button { display: inline-block; margin-bottom: 20px; padding: 10px 15px; border-radius: 5px; text-decoration: none; color: white; background-color: #007bff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .jogador-row td { vertical-align: top; }
+        .excecoes-lista { list-style-type: none; padding-left: 0; margin: 0; font-size: 0.9em; }
+        .excecoes-lista li { display: flex; justify-content: space-between; align-items: center; padding: 2px 0; }
+        .btn-excecao { font-size: 0.8em; padding: 3px 8px; border-radius: 4px; border: none; color: white; cursor: pointer; margin-right: 5px; }
+        .btn-nao-jogado { background-color: #ffc107; color: black; }
+        .btn-compensado { background-color: #17a2b8; }
+        .btn-apagar-excecao { background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold; }
+        .valor-final { font-weight: bold; font-size: 1.2em; color: #28a745; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; display: none; justify-content: center; align-items: center; }
+        .modal { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 400px; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 15px; }
+        .modal-header h3 { margin: 0; }
+        .modal-close-btn { background: none; border: none; font-size: 1.5em; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('controle_ginasio') }}" class="back-link">&larr; Voltar à Gestão</a>
+        <h1>Relatório de Cobrança</h1>
+        <h2>Bimestre: {{ nome_bimestre }}</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Jogador / Grupo</th>
+                    <th>Horário Fixo</th>
+                    <th>Cálculo Base</th>
+                    <th>Exceções</th>
+                    <th>Valor a Pagar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for jogador in jogadores %}
+                <tr class="jogador-row" id="jogador-{{ jogador.id }}">
+                    <td><strong>{{ jogador.nome }}</strong><br><small>{{ jogador.nome_ginasio }}</small></td>
+                    <td>{{ ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"][jogador.dia_semana] }}s às {{ jogador.horario }}</td>
+                    <td>
+                        Dias fixos: {{ jogador.dias_fixos }}<br>
+                        Valor base: R$ {{ jogador.valor_base | formatar_valor }}
+                    </td>
+                    <td>
+                        <ul class="excecoes-lista">
+                            {% for excecao in jogador.excecoes %}
+                                <li>
+                                    <span>
+                                        {% if excecao.tipo == 'NAO_JOGADO' %} 
+                                            <strong style="color: #dc3545;">Não jogado:</strong> 
+                                        {% else %} 
+                                            <strong style="color: #17a2b8;">Compensado:</strong> 
+                                        {% endif %}
+                                        {{ excecao.data_excecao.strftime('%d/%m/%Y') }}
+                                    </span>
+                                    <button class="btn-apagar-excecao" onclick="apagarExcecao({{ excecao.id }})">&times;</button>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                        <div style="margin-top: 10px;">
+                            <button class="btn-excecao btn-nao-jogado" onclick="abrirModal({{ jogador.id }}, 'NAO_JOGADO')">+ Dia não jogado</button>
+                            <button class="btn-excecao btn-compensado" onclick="abrirModal({{ jogador.id }}, 'COMPENSADO')">+ Dia compensado</button>
+                        </div>
+                    </td>
+                    <td class="valor-final">R$ {{ jogador.valor_final | formatar_valor }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="modal-overlay" id="excecao-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-titulo">Adicionar Exceção</h3>
+                <button class="modal-close-btn" onclick="fecharModal()">&times;</button>
+            </div>
+            <form id="form-excecao" onsubmit="adicionarExcecao(event)">
+                <input type="hidden" id="jogador_id" name="jogador_id">
+                <input type="hidden" id="tipo_excecao" name="tipo">
+                <div class="form-group">
+                    <label for="data_excecao">Data</label>
+                    <input type="date" id="data_excecao" name="data" required>
+                </div>
+                <button type="submit">Adicionar</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const modal = document.getElementById('excecao-modal');
+        
+        function abrirModal(jogadorId, tipo) {
+            document.getElementById('jogador_id').value = jogadorId;
+            document.getElementById('tipo_excecao').value = tipo;
+            document.getElementById('modal-titulo').innerText = `Adicionar Dia ${tipo === 'NAO_JOGADO' ? 'Não Jogado' : 'Compensado'}`;
+            modal.style.display = 'flex';
+        }
+
+        function fecharModal() {
+            modal.style.display = 'none';
+        }
+
+        async function adicionarExcecao(event) {
+            event.preventDefault();
+            const jogadorId = document.getElementById('jogador_id').value;
+            const tipo = document.getElementById('tipo_excecao').value;
+            const data = document.getElementById('data_excecao').value;
+
+            const response = await fetch('/api/ginasios/excecao', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jogador_id: jogadorId,
+                    tipo: tipo,
+                    data_excecao: data
+                })
+            });
+            if(response.ok) {
+                location.reload();
+            } else {
+                alert("Ocorreu um erro ao adicionar a exceção.")
+            }
+        }
+
+        async function apagarExcecao(excecaoId) {
+            if (confirm('Tem a certeza que quer apagar esta exceção?')) {
+                const response = await fetch(`/api/ginasios/excecao/${excecaoId}`, { method: 'DELETE' });
+                if(response.ok) {
+                    location.reload();
+                } else {
+                    alert("Ocorreu um erro ao apagar a exceção.")
+                }
+            }
+        }
+    </script>
+</body>
+</html>
