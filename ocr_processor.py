@@ -28,7 +28,7 @@ def processar_nf(caminho_arquivo):
         try:
             doc_pdf = fitz.open(caminho_arquivo)
             pagina = doc_pdf.load_page(0)
-            pix = pagina.get_pixmap(dpi=300)
+            pix = pagina.get_pixmap(dpi=200)
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             texto_completo = pytesseract.image_to_string(img, lang='por')
             doc_pdf.close()
