@@ -795,18 +795,18 @@ def controle_ginasio():
 
     return render_template('controle_ginasio.html', ginasios=ginasios, jogadores=jogadores)
 
-def get_bimestre_atual():
-    """Retorna o mês inicial, o ano e o nome descritivo do bimestre atual."""
+def get_bimestre_info(ano=None, mes_inicial=None):
+    """Retorna o mês inicial, o ano e o nome descritivo de um bimestre."""
     hoje = datetime.date.today()
-    mes_atual = hoje.month
-    ano_atual = hoje.year
+    if ano is None: ano = hoje.year
+    if mes_inicial is None: mes_inicial = hoje.month
 
-    if mes_atual in [1, 2]: return 1, ano_atual, "Janeiro e Fevereiro"
-    if mes_atual in [3, 4]: return 3, ano_atual, "Março e Abril"
-    if mes_atual in [5, 6]: return 5, ano_atual, "Maio e Junho"
-    if mes_atual in [7, 8]: return 7, ano_atual, "Julho e Agosto"
-    if mes_atual in [9, 10]: return 9, ano_atual, "Setembro e Outubro"
-    return 11, ano_atual, "Novembro e Dezembro"
+    if mes_inicial in [1, 2]: return 1, ano, "Janeiro e Fevereiro"
+    if mes_inicial in [3, 4]: return 3, ano, "Março e Abril"
+    if mes_inicial in [5, 6]: return 5, ano, "Maio e Junho"
+    if mes_inicial in [7, 8]: return 7, ano, "Julho e Agosto"
+    if mes_inicial in [9, 10]: return 9, ano, "Setembro e Outubro"
+    return 11, ano, "Novembro e Dezembro"
 
 def contar_dias_semana_bimestre(ano, mes_inicial, dia_semana):
     """Conta quantas vezes um dia da semana ocorre num bimestre."""
@@ -830,19 +830,20 @@ def contar_dias_semana_bimestre(ano, mes_inicial, dia_semana):
 @app.route('/ginasios/cobranca')
 def cobranca_ginasio():
     VALOR_HORA = 25.00
-    mes_inicial, ano, nome_bimestre = get_bimestre_atual()
+
+    # Pega os parâmetros do URL ou usa o bimestre atual como padrão
+    ano_selecionado = request.args.get('ano', type=int, default=datetime.date.today().year)
+    mes_args = request.args.get('mes_inicial', type=int, default=datetime.date.today().month)
+
+    mes_inicial, ano, nome_bimestre = get_bimestre_info(ano_selecionado, mes_args)
 
     conn, db = get_db()
-    # Usar JOIN para obter também o nome do ginásio
     db.execute("""
-        SELECT j.*, g.nome as nome_ginasio 
-        FROM jogadores j 
-        JOIN ginasios g ON j.ginasio_id = g.id 
-        WHERE j.ativo = TRUE
+        SELECT j.*, g.nome as nome_ginasio FROM jogadores j 
+        JOIN ginasios g ON j.ginasio_id = g.id WHERE j.ativo = TRUE
     """)
     jogadores_db = db.fetchall()
 
-    # Busca todas as exceções do bimestre de uma vez
     db.execute(
         "SELECT * FROM excecoes WHERE ano_referencia = %s AND mes_referencia = %s",
         (ano, mes_inicial)
@@ -851,7 +852,6 @@ def cobranca_ginasio():
     db.close()
     conn.close()
 
-    # Agrupa as exceções por jogador
     excecoes_por_jogador = {}
     for exc in excecoes_db:
         jogador_id = exc['jogador_id']
@@ -859,10 +859,9 @@ def cobranca_ginasio():
             excecoes_por_jogador[jogador_id] = []
         excecoes_por_jogador[jogador_id].append(exc)
 
-    # Processa os dados de cada jogador
     jogadores_calculado = []
     for jogador_dict in jogadores_db:
-        jogador = dict(jogador_dict) # Converte para um dicionário mutável
+        jogador = dict(jogador_dict)
         dias_fixos = contar_dias_semana_bimestre(ano, mes_inicial, jogador['dia_semana'])
 
         excecoes_jogador = excecoes_por_jogador.get(jogador['id'], [])
@@ -882,24 +881,19 @@ def cobranca_ginasio():
         'cobranca_ginasio.html',
         jogadores=jogadores_calculado,
         nome_bimestre=f"{nome_bimestre} de {ano}",
-        dias_bimestre=[] # Este pode ser usado para outra coisa no futuro
+        hoje=datetime.date.today(),
+        ano_selecionado=ano,
+        mes_selecionado=mes_inicial
     )
 
 @app.route('/api/ginasios/excecao', methods=['POST'])
 def api_adicionar_excecao():
     dados = request.get_json()
-    jogador_id = dados['jogador_id']
-    tipo = dados['tipo']
-    data_excecao = dados['data_excecao']
-
-    # Determina o bimestre da data da exceção
-    data_obj = datetime.datetime.strptime(data_excecao, '%Y-%m-%d').date()
-    mes_ref, ano_ref, _ = get_bimestre_atual() # Simplificado para usar sempre o bimestre atual
 
     conn, db = get_db()
     db.execute(
         "INSERT INTO excecoes (jogador_id, tipo, data_excecao, mes_referencia, ano_referencia) VALUES (%s, %s, %s, %s, %s)",
-        (jogador_id, tipo, data_obj, mes_ref, ano_ref)
+        (dados['jogador_id'], dados['tipo'], dados['data_excecao'], dados['mes_referencia'], dados['ano_referencia'])
     )
     conn.commit()
     db.close()

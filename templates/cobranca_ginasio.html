@@ -7,7 +7,8 @@
         body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
         .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         h1, h2 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
-        .back-link, .button { display: inline-block; margin-bottom: 20px; padding: 10px 15px; border-radius: 5px; text-decoration: none; color: white; background-color: #007bff; }
+        .back-link, .button { display: inline-block; margin-bottom: 20px; padding: 10px 15px; border-radius: 5px; text-decoration: none; color: white; background-color: #007bff; border: none; }
+        .filter-form { background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         th { background-color: #f2f2f2; }
@@ -30,6 +31,30 @@
     <div class="container">
         <a href="{{ url_for('controle_ginasio') }}" class="back-link">&larr; Voltar à Gestão</a>
         <h1>Relatório de Cobrança</h1>
+
+        <form class="filter-form" method="get">
+            <div>
+                <label for="ano">Ano</label>
+                <select name="ano" id="ano">
+                    {% for y in range(hoje.year - 2, hoje.year + 3) %}
+                    <option value="{{ y }}" {% if y == ano_selecionado %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="mes_inicial">Bimestre</label>
+                <select name="mes_inicial" id="mes_inicial">
+                    <option value="1" {% if mes_selecionado == 1 %}selected{% endif %}>Janeiro/Fevereiro</option>
+                    <option value="3" {% if mes_selecionado == 3 %}selected{% endif %}>Março/Abril</option>
+                    <option value="5" {% if mes_selecionado == 5 %}selected{% endif %}>Maio/Junho</option>
+                    <option value="7" {% if mes_selecionado == 7 %}selected{% endif %}>Julho/Agosto</option>
+                    <option value="9" {% if mes_selecionado == 9 %}selected{% endif %}>Setembro/Outubro</option>
+                    <option value="11" {% if mes_selecionado == 11 %}selected{% endif %}>Novembro/Dezembro</option>
+                </select>
+            </div>
+            <button type="submit" class="button">Filtrar</button>
+        </form>
+
         <h2>Bimestre: {{ nome_bimestre }}</h2>
 
         <table>
@@ -80,7 +105,7 @@
     </div>
 
     <div class="modal-overlay" id="excecao-modal">
-        <div class="modal">
+         <div class="modal">
             <div class="modal-header">
                 <h3 id="modal-titulo">Adicionar Exceção</h3>
                 <button class="modal-close-btn" onclick="fecharModal()">&times;</button>
@@ -88,6 +113,8 @@
             <form id="form-excecao" onsubmit="adicionarExcecao(event)">
                 <input type="hidden" id="jogador_id" name="jogador_id">
                 <input type="hidden" id="tipo_excecao" name="tipo">
+                <input type="hidden" id="ano_selecionado" name="ano" value="{{ ano_selecionado }}">
+                <input type="hidden" id="mes_selecionado" name="mes_inicial" value="{{ mes_selecionado }}">
                 <div class="form-group">
                     <label for="data_excecao">Data</label>
                     <input type="date" id="data_excecao" name="data" required>
@@ -99,7 +126,7 @@
 
     <script>
         const modal = document.getElementById('excecao-modal');
-        
+
         function abrirModal(jogadorId, tipo) {
             document.getElementById('jogador_id').value = jogadorId;
             document.getElementById('tipo_excecao').value = tipo;
@@ -113,17 +140,18 @@
 
         async function adicionarExcecao(event) {
             event.preventDefault();
-            const jogadorId = document.getElementById('jogador_id').value;
-            const tipo = document.getElementById('tipo_excecao').value;
-            const data = document.getElementById('data_excecao').value;
+            const form = event.target;
+            const data = new FormData(form);
 
             const response = await fetch('/api/ginasios/excecao', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    jogador_id: jogadorId,
-                    tipo: tipo,
-                    data_excecao: data
+                    jogador_id: data.get('jogador_id'),
+                    tipo: data.get('tipo'),
+                    data_excecao: data.get('data'),
+                    ano_referencia: data.get('ano'),
+                    mes_referencia: data.get('mes_inicial')
                 })
             });
             if(response.ok) {
