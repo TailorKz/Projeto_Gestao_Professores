@@ -758,7 +758,7 @@ def inicializar_ginasios():
     db.execute("SELECT * FROM ginasios")
     ginasios_existentes = db.fetchall()
     if not ginasios_existentes:
-        db.execute("INSERT INTO ginasios (nome) VALUES ('Ginásio 1'), ('Ginásio 2')")
+        db.execute("INSERT INTO ginasios (nome) VALUES ('Arthur Friedrich'), ('Poliesportivo')")
         conn.commit()
     db.close()
     conn.close()
