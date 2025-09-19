@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Controle de Ginásios</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .back-link { display: inline-block; margin-bottom: 20px; }
+        .form-section, .list-section { margin-top: 30px; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: .5rem; font-weight: bold; }
+        input[type="text"], input[type="time"], select { width: 100%; padding: .5rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('ferramentas_pdf') }}" class="back-link">&larr; Voltar às Ferramentas</a>
+        <h1>Controle de Ginásios</h1>
+        <a href="{{ url_for('cobranca_ginasio') }}" class="button" style="background-color: #28a745;">Ver Cobrança do Bimestre</a>
+        <div class="form-section">
+            <h2>Adicionar Novo Jogador</h2>
+            <form method="post">
+                <div class="form-group">
+                    <label for="ginasio_id">Ginásio</label>
+                    <select name="ginasio_id" id="ginasio_id" required>
+                        {% for ginasio in ginasios %}
+                            <option value="{{ ginasio.id }}">{{ ginasio.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="nome">Nome do Jogador / Grupo</label>
+                    <input type="text" name="nome" id="nome" required>
+                </div>
+                <div class="form-group">
+                    <label for="dia_semana">Dia da Semana</label>
+                    <select name="dia_semana" id="dia_semana" required>
+                        <option value="0">Segunda-feira</option>
+                        <option value="1">Terça-feira</option>
+                        <option value="2">Quarta-feira</option>
+                        <option value="3">Quinta-feira</option>
+                        <option value="4">Sexta-feira</option>
+                        <option value="5">Sábado</option>
+                        <option value="6">Domingo</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="horario">Horário (ex: 20:30 - 21:30)</label>
+                    <input type="text" name="horario" id="horario" required>
+                </div>
+                <button type="submit">Adicionar Jogador</button>
+            </form>
+        </div>
+
+        <div class="list-section">
+            <h2>Jogadores por Ginásio</h2>
+            {% for ginasio in ginasios %}
+                <h3>{{ ginasio.nome }}</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dia da Semana</th>
+                            <th>Nome</th>
+                            <th>Horário</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for jogador in jogadores | selectattr('ginasio_id', 'equalto', ginasio.id) | sort(attribute='dia_semana') %}
+                            <tr>
+                                <td>{{ ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"][jogador.dia_semana] }}</td>
+                                <td>{{ jogador.nome }}</td>
+                                <td>{{ jogador.horario }}</td>
+                                <td>
+                                    </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="4" style="text-align: center;">Nenhum jogador cadastrado para este ginásio.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endfor %}
+        </div>
+
+    </div>
+</body>
+</html>

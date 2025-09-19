@@ -752,6 +752,169 @@ def api_deletar_evento(evento_id):
     conn.close()
     return jsonify({'status': 'sucesso', 'mensagem': 'Evento apagado.'})
 
+def inicializar_ginasios():
+    """Garante que os dois ginásios principais existem na base de dados."""
+    conn, db = get_db()
+    db.execute("SELECT * FROM ginasios")
+    ginasios_existentes = db.fetchall()
+    if not ginasios_existentes:
+        db.execute("INSERT INTO ginasios (nome) VALUES ('Ginásio 1'), ('Ginásio 2')")
+        conn.commit()
+    db.close()
+    conn.close()
+
+@app.route('/controle-ginasio', methods=['GET', 'POST'])
+def controle_ginasio():
+    inicializar_ginasios() 
+
+    if request.method == 'POST':
+        ginasio_id = request.form['ginasio_id']
+        nome = request.form['nome']
+        dia_semana = request.form['dia_semana']
+        horario = request.form['horario']
+
+        conn, db = get_db()
+        db.execute(
+            "INSERT INTO jogadores (ginasio_id, nome, dia_semana, horario) VALUES (%s, %s, %s, %s)",
+            (ginasio_id, nome, dia_semana, horario)
+        )
+        conn.commit()
+        db.close()
+        conn.close()
+        flash('Jogador adicionado com sucesso!', 'success')
+        return redirect(url_for('controle_ginasio'))
+
+    # Lógica GET
+    conn, db = get_db()
+    db.execute("SELECT * FROM ginasios ORDER BY nome")
+    ginasios = db.fetchall()
+    db.execute("SELECT * FROM jogadores WHERE ativo = TRUE ORDER BY dia_semana, horario")
+    jogadores = db.fetchall()
+    db.close()
+    conn.close()
+
+    return render_template('controle_ginasio.html', ginasios=ginasios, jogadores=jogadores)
+
+def get_bimestre_atual():
+    """Retorna o mês inicial, o ano e o nome descritivo do bimestre atual."""
+    hoje = datetime.date.today()
+    mes_atual = hoje.month
+    ano_atual = hoje.year
+
+    if mes_atual in [1, 2]: return 1, ano_atual, "Janeiro e Fevereiro"
+    if mes_atual in [3, 4]: return 3, ano_atual, "Março e Abril"
+    if mes_atual in [5, 6]: return 5, ano_atual, "Maio e Junho"
+    if mes_atual in [7, 8]: return 7, ano_atual, "Julho e Agosto"
+    if mes_atual in [9, 10]: return 9, ano_atual, "Setembro e Outubro"
+    return 11, ano_atual, "Novembro e Dezembro"
+
+def contar_dias_semana_bimestre(ano, mes_inicial, dia_semana):
+    """Conta quantas vezes um dia da semana ocorre num bimestre."""
+    mes_final = mes_inicial + 1
+    data_inicio = datetime.date(ano, mes_inicial, 1)
+
+    # Encontra o último dia do mês final
+    if mes_final == 12:
+        data_fim = datetime.date(ano, mes_final, 31)
+    else:
+        data_fim = datetime.date(ano, mes_final + 1, 1) - datetime.timedelta(days=1)
+
+    total_dias = 0
+    data_atual = data_inicio
+    while data_atual <= data_fim:
+        if data_atual.weekday() == dia_semana:
+            total_dias += 1
+        data_atual += datetime.timedelta(days=1)
+    return total_dias
+
+@app.route('/ginasios/cobranca')
+def cobranca_ginasio():
+    VALOR_HORA = 25.00
+    mes_inicial, ano, nome_bimestre = get_bimestre_atual()
+
+    conn, db = get_db()
+    # Usar JOIN para obter também o nome do ginásio
+    db.execute("""
+        SELECT j.*, g.nome as nome_ginasio 
+        FROM jogadores j 
+        JOIN ginasios g ON j.ginasio_id = g.id 
+        WHERE j.ativo = TRUE
+    """)
+    jogadores_db = db.fetchall()
+
+    # Busca todas as exceções do bimestre de uma vez
+    db.execute(
+        "SELECT * FROM excecoes WHERE ano_referencia = %s AND mes_referencia = %s",
+        (ano, mes_inicial)
+    )
+    excecoes_db = db.fetchall()
+    db.close()
+    conn.close()
+
+    # Agrupa as exceções por jogador
+    excecoes_por_jogador = {}
+    for exc in excecoes_db:
+        jogador_id = exc['jogador_id']
+        if jogador_id not in excecoes_por_jogador:
+            excecoes_por_jogador[jogador_id] = []
+        excecoes_por_jogador[jogador_id].append(exc)
+
+    # Processa os dados de cada jogador
+    jogadores_calculado = []
+    for jogador_dict in jogadores_db:
+        jogador = dict(jogador_dict) # Converte para um dicionário mutável
+        dias_fixos = contar_dias_semana_bimestre(ano, mes_inicial, jogador['dia_semana'])
+
+        excecoes_jogador = excecoes_por_jogador.get(jogador['id'], [])
+        dias_nao_jogados = len([e for e in excecoes_jogador if e['tipo'] == 'NAO_JOGADO'])
+        dias_compensados = len([e for e in excecoes_jogador if e['tipo'] == 'COMPENSADO'])
+
+        dias_a_pagar = dias_fixos - dias_nao_jogados + dias_compensados
+
+        jogador['dias_fixos'] = dias_fixos
+        jogador['valor_base'] = dias_fixos * VALOR_HORA
+        jogador['excecoes'] = excecoes_jogador
+        jogador['valor_final'] = dias_a_pagar * VALOR_HORA
+
+        jogadores_calculado.append(jogador)
+
+    return render_template(
+        'cobranca_ginasio.html',
+        jogadores=jogadores_calculado,
+        nome_bimestre=f"{nome_bimestre} de {ano}",
+        dias_bimestre=[] # Este pode ser usado para outra coisa no futuro
+    )
+
+@app.route('/api/ginasios/excecao', methods=['POST'])
+def api_adicionar_excecao():
+    dados = request.get_json()
+    jogador_id = dados['jogador_id']
+    tipo = dados['tipo']
+    data_excecao = dados['data_excecao']
+
+    # Determina o bimestre da data da exceção
+    data_obj = datetime.datetime.strptime(data_excecao, '%Y-%m-%d').date()
+    mes_ref, ano_ref, _ = get_bimestre_atual() # Simplificado para usar sempre o bimestre atual
+
+    conn, db = get_db()
+    db.execute(
+        "INSERT INTO excecoes (jogador_id, tipo, data_excecao, mes_referencia, ano_referencia) VALUES (%s, %s, %s, %s, %s)",
+        (jogador_id, tipo, data_obj, mes_ref, ano_ref)
+    )
+    conn.commit()
+    db.close()
+    conn.close()
+    return jsonify({'status': 'sucesso'})
+
+@app.route('/api/ginasios/excecao/<int:excecao_id>', methods=['DELETE'])
+def api_deletar_excecao(excecao_id):
+    conn, db = get_db()
+    db.execute("DELETE FROM excecoes WHERE id = %s", (excecao_id,))
+    conn.commit()
+    db.close()
+    conn.close()
+    return jsonify({'status': 'sucesso'})
+
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)

@@ -39,6 +39,31 @@ def criar_tabelas():
             CREATE TABLE IF NOT EXISTS eventos (
                 id SERIAL PRIMARY KEY, data TEXT NOT NULL, horario TEXT, descricao TEXT NOT NULL
             );
+             -- Adicione estas tabelas novas
+        CREATE TABLE IF NOT EXISTS ginasios (
+            id SERIAL PRIMARY KEY,
+            nome TEXT NOT NULL UNIQUE
+        );
+
+        CREATE TABLE IF NOT EXISTS jogadores (
+            id SERIAL PRIMARY KEY,
+            ginasio_id INTEGER NOT NULL,
+            nome TEXT NOT NULL,
+            dia_semana INTEGER NOT NULL, -- 0=Segunda, 1=Terça, etc.
+            horario TEXT NOT NULL,
+            ativo BOOLEAN DEFAULT TRUE,
+            FOREIGN KEY (ginasio_id) REFERENCES ginasios (id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS excecoes (
+            id SERIAL PRIMARY KEY,
+            jogador_id INTEGER NOT NULL,
+            data_excecao DATE NOT NULL,
+            tipo TEXT NOT NULL, -- 'NAO_JOGADO' ou 'COMPENSADO'
+            mes_referencia INTEGER NOT NULL,
+            ano_referencia INTEGER NOT NULL,
+            FOREIGN KEY (jogador_id) REFERENCES jogadores (id) ON DELETE CASCADE
+        );
         ''')
         conn.commit()
         cursor.close()

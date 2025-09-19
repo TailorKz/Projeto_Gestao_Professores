@@ -3,3 +3,4 @@ uploads/
 gestor.db
 __pycache__/
 *.pyc
+venv/
