@@ -320,11 +320,11 @@ def gastos_por_categoria(categoria):
     ano_atual = datetime.datetime.now().year
     anos = [ano_atual + i for i in range(3)]
     parcelas = {
-        1: "Fevereiro, Março e Abril",
-        2: "Maio e Junho",
-        3: "Julho e Agosto",
-        4: "Setembro e Outubro",
-        5: "Novembro e Dezembro"
+        1: "Fevereiro e Março",
+        2: "Abril e Maio",
+        3: "Junho e Julho",
+        4: "Agosto e Setembro",
+        5: "Outubro, Novembro e Dezembro"
     }
     return render_template('gastos_por_categoria.html', categoria=categoria, anos=anos, parcelas=parcelas)
 
