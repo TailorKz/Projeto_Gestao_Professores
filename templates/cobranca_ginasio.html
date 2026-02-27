@@ -8,19 +8,23 @@
         body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
         .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         h1, h2 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
-        .back-link, .button { display: inline-block; margin-bottom: 20px; padding: 10px 15px; border-radius: 5px; text-decoration: none; color: white; background-color: #007bff; border: none; }
+        .back-link, .button { display: inline-block; margin-bottom: 20px; padding: 10px 15px; border-radius: 5px; text-decoration: none; color: white; background-color: #007bff; border: none; cursor: pointer; }
+        .btn-salvar { background-color: #28a745; font-size: 1.1em; font-weight: bold; width: 100%; margin-top: 20px; padding: 15px; }
         .filter-form { background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 30px;}
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         th { background-color: #f2f2f2; }
         .jogador-row td { vertical-align: top; }
         .excecoes-lista { list-style-type: none; padding-left: 0; margin: 0; font-size: 0.9em; }
-        .excecoes-lista li { display: flex; justify-content: space-between; align-items: center; padding: 2px 0; }
-        .btn-excecao { font-size: 0.8em; padding: 3px 8px; border-radius: 4px; border: none; color: white; cursor: pointer; margin-right: 5px; }
+        .excecoes-lista li { display: flex; justify-content: space-between; align-items: center; padding: 2px 0; border-bottom: 1px dashed #eee;}
+        .btn-excecao { font-size: 0.8em; padding: 3px 8px; border-radius: 4px; border: none; color: white; cursor: pointer; margin-right: 5px; margin-top: 5px;}
         .btn-nao-jogado { background-color: #ffc107; color: black; }
         .btn-compensado { background-color: #17a2b8; }
-        .btn-apagar-excecao { background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold; }
+        .btn-apagar-excecao { background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold; font-size: 1.2em;}
         .valor-final { font-weight: bold; font-size: 1.2em; color: #28a745; }
+        .pago-checkbox { width: 20px; height: 20px; cursor: pointer; }
+        .dia-header { background-color: #343a40; color: white; padding: 10px; border-radius: 5px; margin-bottom: 0; }
+        /* Modal Styles */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; display: none; justify-content: center; align-items: center; }
         .modal { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 400px; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 15px; }
@@ -58,51 +62,67 @@
 
         <h2>Bimestre: {{ nome_bimestre }}</h2>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Jogador / Grupo</th>
-                    <th>Horário Fixo</th>
-                    <th>Cálculo Base</th>
-                    <th>Exceções</th>
-                    <th>Valor a Pagar</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for jogador in jogadores %}
-                <tr class="jogador-row" id="jogador-{{ jogador.id }}">
-                    <td><strong>{{ jogador.nome }}</strong><br><small>{{ jogador.nome_ginasio }}</small></td>
-                    <td>{{ ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"][jogador.dia_semana] }}s às {{ jogador.horario }}</td>
-                    <td>
-                        Dias fixos: {{ jogador.dias_fixos }}<br>
-                        Valor base: R$ {{ jogador.valor_base | formatar_valor }}
-                    </td>
-                    <td>
-                        <ul class="excecoes-lista">
-                            {% for excecao in jogador.excecoes %}
-                                <li>
-                                    <span>
-                                        {% if excecao.tipo == 'NAO_JOGADO' %} 
-                                            <strong style="color: #dc3545;">Não jogado:</strong> 
-                                        {% else %} 
-                                            <strong style="color: #17a2b8;">Compensado:</strong> 
-                                        {% endif %}
-                                        {{ excecao.data_excecao.strftime('%d/%m/%Y') }}
-                                    </span>
-                                    <button class="btn-apagar-excecao" onclick="apagarExcecao({{ excecao.id }})">&times;</button>
-                                </li>
-                            {% endfor %}
-                        </ul>
-                        <div style="margin-top: 10px;">
-                            <button class="btn-excecao btn-nao-jogado" onclick="abrirModal({{ jogador.id }}, 'NAO_JOGADO')">+ Dia não jogado</button>
-                            <button class="btn-excecao btn-compensado" onclick="abrirModal({{ jogador.id }}, 'COMPENSADO')">+ Dia compensado</button>
-                        </div>
-                    </td>
-                    <td class="valor-final">R$ {{ jogador.valor_final | formatar_valor }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        {% set dias_nomes = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"] %}
+        
+        {% for dia in range(7) %}
+            {% set jogadores_dia = jogadores | selectattr('dia_semana', 'equalto', dia) | list %}
+            
+            {% if jogadores_dia %}
+                <h3 class="dia-header">{{ dias_nomes[dia] }}</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">Pago</th>
+                            <th style="width: 25%;">Jogador / Horário</th>
+                            <th style="width: 20%;">Cálculo Base</th>
+                            <th style="width: 35%;">Exceções (Marcadas para Salvar)</th>
+                            <th style="width: 15%;">Valor a Pagar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for jogador in jogadores_dia %}
+                        <tr class="jogador-row">
+                            <td style="text-align: center; vertical-align: middle;">
+                                <input type="checkbox" class="pago-checkbox" data-jogador-id="{{ jogador.id }}" {% if jogador.pago %}checked{% endif %}>
+                            </td>
+                            <td>
+                                <strong>{{ jogador.nome }}</strong><br>
+                                <small>📍 {{ jogador.nome_ginasio }}</small><br>
+                                <span style="color: #0056b3;">🕒 {{ jogador.horario }}</span>
+                            </td>
+                            <td>
+                                Dias fixos: {{ jogador.dias_fixos }}<br>
+                                Valor base: R$ {{ jogador.valor_base | formatar_valor }}
+                            </td>
+                            <td>
+                                <ul class="excecoes-lista" id="lista-excecoes-{{ jogador.id }}">
+                                    {% for excecao in jogador.excecoes %}
+                                        <li id="exc-{{ excecao.id }}">
+                                            <span>
+                                                {% if excecao.tipo == 'NAO_JOGADO' %} 
+                                                    <strong style="color: #dc3545;">Não jogado:</strong> 
+                                                {% else %} 
+                                                    <strong style="color: #17a2b8;">Compensado:</strong> 
+                                                {% endif %}
+                                                {{ excecao.data_excecao.strftime('%d/%m/%Y') }}
+                                            </span>
+                                            <button class="btn-apagar-excecao" onclick="marcarExcecaoParaRemover({{ excecao.id }}, this)" title="Remover">&times;</button>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                                
+                                <button class="btn-excecao btn-nao-jogado" onclick="abrirModal({{ jogador.id }}, 'NAO_JOGADO')">+ Dia não jogado</button>
+                                <button class="btn-excecao btn-compensado" onclick="abrirModal({{ jogador.id }}, 'COMPENSADO')">+ Dia compensado</button>
+                            </td>
+                            <td class="valor-final">R$ {{ jogador.valor_final | formatar_valor }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        {% endfor %}
+
+        <button onclick="salvarTudoEmLote()" class="button btn-salvar">💾 Salvar Todas as Alterações</button>
     </div>
 
     <div class="modal-overlay" id="excecao-modal">
@@ -111,27 +131,32 @@
                 <h3 id="modal-titulo">Adicionar Exceção</h3>
                 <button class="modal-close-btn" onclick="fecharModal()">&times;</button>
             </div>
-            <form id="form-excecao" onsubmit="adicionarExcecao(event)">
+            <form id="form-excecao" onsubmit="prepararNovaExcecao(event)">
                 <input type="hidden" id="jogador_id" name="jogador_id">
                 <input type="hidden" id="tipo_excecao" name="tipo">
-                <input type="hidden" id="ano_selecionado" name="ano" value="{{ ano_selecionado }}">
-                <input type="hidden" id="mes_selecionado" name="mes_inicial" value="{{ mes_selecionado }}">
-                <div class="form-group">
-                    <label for="data_excecao">Data</label>
-                    <input type="date" id="data_excecao" name="data" required>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px;" for="data_excecao">Data</label>
+                    <input style="width: 100%; padding: 8px;" type="date" id="data_excecao" name="data" required>
                 </div>
-                <button type="submit">Adicionar</button>
+                <button type="submit" class="button" style="width: 100%;">Preparar (Salvará ao clicar em Salvar Tudo)</button>
             </form>
         </div>
     </div>
 
     <script>
+        // Filas para guardar o que precisa ser enviado pro servidor
+        let excecoesAdicionar = [];
+        let excecoesRemover = [];
+        
+        let tempIdCounter = 0; // Cria IDs temporários para exceções novas na tela
+
         const modal = document.getElementById('excecao-modal');
 
         function abrirModal(jogadorId, tipo) {
             document.getElementById('jogador_id').value = jogadorId;
             document.getElementById('tipo_excecao').value = tipo;
             document.getElementById('modal-titulo').innerText = `Adicionar Dia ${tipo === 'NAO_JOGADO' ? 'Não Jogado' : 'Compensado'}`;
+            document.getElementById('data_excecao').value = '';
             modal.style.display = 'flex';
         }
 
@@ -139,37 +164,104 @@
             modal.style.display = 'none';
         }
 
-        async function adicionarExcecao(event) {
+        // Ao invés de mandar pro servidor, joga na lista e cria visualmente
+        function prepararNovaExcecao(event) {
             event.preventDefault();
             const form = event.target;
-            const data = new FormData(form);
+            const jogadorId = form.jogador_id.value;
+            const tipo = form.tipo.value;
+            const dataStr = form.data.value;
 
-            const response = await fetch('/api/ginasios/excecao', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    jogador_id: data.get('jogador_id'),
-                    tipo: data.get('tipo'),
-                    data_excecao: data.get('data'),
-                    ano_referencia: data.get('ano'),
-                    mes_referencia: data.get('mes_inicial')
-                })
+            // Formata data para pt-br visualmente
+            const dataParts = dataStr.split('-');
+            const dataVisual = `${dataParts[2]}/${dataParts[1]}/${dataParts[0]}`;
+
+            // Guarda no array
+            const tempId = 'temp_' + tempIdCounter++;
+            excecoesAdicionar.push({
+                tempId: tempId,
+                jogador_id: jogadorId,
+                tipo: tipo,
+                data: dataStr
             });
-            if(response.ok) {
-                location.reload();
-            } else {
-                alert("Ocorreu um erro ao adicionar a exceção.")
-            }
+
+            // Adiciona visualmente na tela
+            const ul = document.getElementById(`lista-excecoes-${jogadorId}`);
+            const li = document.createElement('li');
+            li.id = tempId;
+            li.style.backgroundColor = '#eef'; // destaca que é algo novo
+            
+            const txtCor = tipo === 'NAO_JOGADO' ? '#dc3545' : '#17a2b8';
+            const txtTipo = tipo === 'NAO_JOGADO' ? 'Não jogado' : 'Compensado';
+
+            li.innerHTML = `
+                <span>
+                    <strong style="color: ${txtCor};">${txtTipo}:</strong> ${dataVisual} <small>(pendente)</small>
+                </span>
+                <button class="btn-apagar-excecao" onclick="cancelarExcecaoNova('${tempId}', this)">&times;</button>
+            `;
+            ul.appendChild(li);
+
+            fecharModal();
         }
 
-        async function apagarExcecao(excecaoId) {
-            if (confirm('Tem a certeza que quer apagar esta exceção?')) {
-                const response = await fetch(`/api/ginasios/excecao/${excecaoId}`, { method: 'DELETE' });
-                if(response.ok) {
-                    location.reload();
-                } else {
-                    alert("Ocorreu um erro ao apagar a exceção.")
-                }
+        // Se quiser apagar uma exceção que já estava salva no BD
+        function marcarExcecaoParaRemover(idReal, btnElement) {
+            excecoesRemover.push(idReal);
+            const li = btnElement.parentElement;
+            li.style.textDecoration = "line-through";
+            li.style.opacity = "0.5";
+            btnElement.style.display = "none";
+        }
+
+        // Se quiser apagar uma exceção que acabou de colocar, mas ainda não salvou
+        function cancelarExcecaoNova(tempId, btnElement) {
+            // Tira da lista de adicionar
+            excecoesAdicionar = excecoesAdicionar.filter(exc => exc.tempId !== tempId);
+            // Remove da tela
+            btnElement.parentElement.remove();
+        }
+
+        // Função que junta todas as informações e envia
+        async function salvarTudoEmLote() {
+            const btnSalvar = document.querySelector('.btn-salvar');
+            btnSalvar.innerText = "Salvando aguarde...";
+            btnSalvar.disabled = true;
+
+            // Pega o valor do ano e mês do formulário lá em cima
+            const ano = parseInt(document.getElementById('ano').value);
+            const mes = parseInt(document.getElementById('mes_inicial').value);
+
+            // Lê todos os checkboxes de "Pago"
+            const checkboxes = document.querySelectorAll('.pago-checkbox');
+            const pagamentos = {};
+            checkboxes.forEach(chk => {
+                const jogadorId = chk.getAttribute('data-jogador-id');
+                pagamentos[jogadorId] = chk.checked;
+            });
+
+            // Payload para mandar pro Python
+            const payload = {
+                ano: ano,
+                mes: mes,
+                pagamentos: pagamentos,
+                excecoes_add: excecoesAdicionar,
+                excecoes_rem: excecoesRemover
+            };
+
+            const response = await fetch('/api/ginasios/salvar_lote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if(response.ok) {
+                alert("Todas as alterações salvas com sucesso!");
+                location.reload(); // Recarrega para calcular os novos valores no Python
+            } else {
+                alert("Ocorreu um erro ao salvar. Tente novamente.");
+                btnSalvar.innerText = "💾 Salvar Todas as Alterações";
+                btnSalvar.disabled = false;
             }
         }
     </script>

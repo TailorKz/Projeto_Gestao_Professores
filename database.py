@@ -64,6 +64,15 @@ def criar_tabelas():
             ano_referencia INTEGER NOT NULL,
             FOREIGN KEY (jogador_id) REFERENCES jogadores (id) ON DELETE CASCADE
         );
+            CREATE TABLE IF NOT EXISTS pagamentos_ginasio (
+            id SERIAL PRIMARY KEY,
+            jogador_id INTEGER NOT NULL,
+            ano_referencia INTEGER NOT NULL,
+            mes_referencia INTEGER NOT NULL,
+            pago BOOLEAN DEFAULT FALSE,
+            UNIQUE(jogador_id, ano_referencia, mes_referencia),
+            FOREIGN KEY (jogador_id) REFERENCES jogadores (id) ON DELETE CASCADE
+        );
         ''')
         conn.commit()
         cursor.close()

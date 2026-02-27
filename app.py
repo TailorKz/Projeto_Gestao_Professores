@@ -859,6 +859,31 @@ def cobranca_ginasio():
             excecoes_por_jogador[jogador_id] = []
         excecoes_por_jogador[jogador_id].append(exc)
 
+# ... (código existente acima na rota cobranca_ginasio)
+    db.execute(
+        "SELECT * FROM excecoes WHERE ano_referencia = %s AND mes_referencia = %s",
+        (ano, mes_inicial)
+    )
+    excecoes_db = db.fetchall()
+
+    # BUSCAR STATUS DE PAGAMENTO DO BIMESTRE
+    db.execute(
+        "SELECT * FROM pagamentos_ginasio WHERE ano_referencia = %s AND mes_referencia = %s",
+        (ano, mes_inicial)
+    )
+    pagamentos_db = db.fetchall()
+    pagamentos_por_jogador = {p['jogador_id']: p['pago'] for p in pagamentos_db}
+    
+    db.close()
+    conn.close()
+
+    excecoes_por_jogador = {}
+    for exc in excecoes_db:
+        jogador_id = exc['jogador_id']
+        if jogador_id not in excecoes_por_jogador:
+            excecoes_por_jogador[jogador_id] = []
+        excecoes_por_jogador[jogador_id].append(exc)
+
     jogadores_calculado = []
     for jogador_dict in jogadores_db:
         jogador = dict(jogador_dict)
@@ -874,11 +899,18 @@ def cobranca_ginasio():
         jogador['valor_base'] = dias_fixos * VALOR_HORA
         jogador['excecoes'] = excecoes_jogador
         jogador['valor_final'] = dias_a_pagar * VALOR_HORA
+        
+        # Atribui o status de pago
+        jogador['pago'] = pagamentos_por_jogador.get(jogador['id'], False)
 
         jogadores_calculado.append(jogador)
 
+    # Ordenar por horário para que fique organizado dentro de cada dia
+    jogadores_calculado.sort(key=lambda x: x['horario'])
+
     return render_template(
         'cobranca_ginasio.html',
+# ... (restante do código igual)
         jogadores=jogadores_calculado,
         nome_bimestre=f"{nome_bimestre} de {ano}",
         hoje=datetime.date.today(),
@@ -951,6 +983,42 @@ def deletar_jogador(jogador_id):
     conn.close()
     flash('Jogador apagado com sucesso.', 'success')
     return redirect(url_for('controle_ginasio'))
+@app.route('/api/ginasios/salvar_lote', methods=['POST'])
+def salvar_lote_ginasio():
+    dados = request.get_json()
+    ano = dados.get('ano')
+    mes = dados.get('mes')
+    pagamentos = dados.get('pagamentos', {})
+    excecoes_add = dados.get('excecoes_add', [])
+    excecoes_rem = dados.get('excecoes_rem', [])
+
+    conn, db = get_db()
+    
+    # 1. Salvar status de pagamento
+    for jogador_id_str, pago in pagamentos.items():
+        jogador_id = int(jogador_id_str)
+        db.execute('''
+            INSERT INTO pagamentos_ginasio (jogador_id, ano_referencia, mes_referencia, pago)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (jogador_id, ano_referencia, mes_referencia)
+            DO UPDATE SET pago = EXCLUDED.pago
+        ''', (jogador_id, ano, mes, pago))
+
+    # 2. Inserir novas exceções
+    for exc in excecoes_add:
+        db.execute('''
+            INSERT INTO excecoes (jogador_id, tipo, data_excecao, mes_referencia, ano_referencia)
+            VALUES (%s, %s, %s, %s, %s)
+        ''', (exc['jogador_id'], exc['tipo'], exc['data'], mes, ano))
+
+    # 3. Apagar exceções removidas
+    for exc_id in excecoes_rem:
+        db.execute("DELETE FROM excecoes WHERE id = %s", (exc_id,))
+
+    conn.commit()
+    db.close()
+    conn.close()
+    return jsonify({'status': 'sucesso'})
 
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):

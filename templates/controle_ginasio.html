@@ -59,39 +59,43 @@
             </form>
         </div>
 
-        <div class="list-section">
+       <div class="list-section">
             <h2>Jogadores por Ginásio</h2>
+            {% set dias_nomes = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"] %}
+            
             {% for ginasio in ginasios %}
-                <h3>{{ ginasio.nome }}</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Dia da Semana</th>
-                            <th>Nome</th>
-                            <th>Horário</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for jogador in jogadores | selectattr('ginasio_id', 'equalto', ginasio.id) | sort(attribute='dia_semana') %}
-                            <tr>
-                                <td>{{ ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"][jogador.dia_semana] }}</td>
-                                <td>{{ jogador.nome }}</td>
-                                <td>{{ jogador.horario }}</td>
-                                <td>
-                                    <a href="{{ url_for('editar_jogador', jogador_id=jogador.id) }}" style="text-decoration: none;">✏️ Editar</a>
-                                        <form action="{{ url_for('deletar_jogador', jogador_id=jogador.id) }}" method="post" style="display:inline; margin-left: 10px;" onsubmit="return confirm('Tem a certeza que quer apagar este jogador?');">
-                                        <button type="submit" style="background:none; border:none; color:red; cursor:pointer; padding:0;">🗑️ Apagar</button>
+                <h3 style="background-color: #e9ecef; padding: 10px; border-radius: 5px;">📍 {{ ginasio.nome }}</h3>
+                
+                {% for dia in range(7) %}
+                    {% set jogadores_dia = jogadores | selectattr('ginasio_id', 'equalto', ginasio.id) | selectattr('dia_semana', 'equalto', dia) | sort(attribute='horario') | list %}
+                    
+                    {% if jogadores_dia %}
+                        <h4 style="color: #0056b3; margin-bottom: 5px;">📅 {{ dias_nomes[dia] }}</h4>
+                        <table style="margin-top: 0; margin-bottom: 20px;">
+                            <thead>
+                                <tr>
+                                    <th>Horário</th>
+                                    <th>Nome</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for jogador in jogadores_dia %}
+                                    <tr>
+                                        <td>{{ jogador.horario }}</td>
+                                        <td><strong>{{ jogador.nome }}</strong></td>
+                                        <td>
+                                            <a href="{{ url_for('editar_jogador', jogador_id=jogador.id) }}" style="text-decoration: none;">✏️ Editar</a>
+                                            <form action="{{ url_for('deletar_jogador', jogador_id=jogador.id) }}" method="post" style="display:inline; margin-left: 10px;" onsubmit="return confirm('Tem a certeza que quer apagar este jogador?');">
+                                                <button type="submit" style="background:none; border:none; color:red; cursor:pointer; padding:0;">🗑️ Apagar</button>
                                             </form>
-                                    </td>
-                            </tr>
-                        {% else %}
-                            <tr>
-                                <td colspan="4" style="text-align: center;">Nenhum jogador cadastrado para este ginásio.</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% endif %}
+                {% endfor %}
             {% endfor %}
         </div>
 
