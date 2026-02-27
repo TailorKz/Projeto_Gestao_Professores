@@ -849,22 +849,6 @@ def cobranca_ginasio():
         (ano, mes_inicial)
     )
     excecoes_db = db.fetchall()
-    db.close()
-    conn.close()
-
-    excecoes_por_jogador = {}
-    for exc in excecoes_db:
-        jogador_id = exc['jogador_id']
-        if jogador_id not in excecoes_por_jogador:
-            excecoes_por_jogador[jogador_id] = []
-        excecoes_por_jogador[jogador_id].append(exc)
-
-# ... (código existente acima na rota cobranca_ginasio)
-    db.execute(
-        "SELECT * FROM excecoes WHERE ano_referencia = %s AND mes_referencia = %s",
-        (ano, mes_inicial)
-    )
-    excecoes_db = db.fetchall()
 
     # BUSCAR STATUS DE PAGAMENTO DO BIMESTRE
     db.execute(
@@ -874,6 +858,7 @@ def cobranca_ginasio():
     pagamentos_db = db.fetchall()
     pagamentos_por_jogador = {p['jogador_id']: p['pago'] for p in pagamentos_db}
     
+    # IMPORTANTE: SÓ FECHA A CONEXÃO AQUI, DEPOIS DE TODAS AS CONSULTAS
     db.close()
     conn.close()
 
@@ -910,7 +895,6 @@ def cobranca_ginasio():
 
     return render_template(
         'cobranca_ginasio.html',
-# ... (restante do código igual)
         jogadores=jogadores_calculado,
         nome_bimestre=f"{nome_bimestre} de {ano}",
         hoje=datetime.date.today(),
