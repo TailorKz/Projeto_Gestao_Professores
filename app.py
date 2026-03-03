@@ -154,7 +154,7 @@ def detalhes_professor(professor_id):
     if professor is None: abort(404)
     ano_atual = datetime.datetime.now().year
     # Mostra os 2 anos anteriores, o atual e o próximo (ex: 2024, 2025, 2026, 2027)
-    anos = [ano_atual - 2, ano_atual - 1, ano_atual, ano_atual + 1]
+    anos = [ano_atual, ano_atual + 1, ano_atual - 1]
     meses = [(m, datetime.date(2000, m, 1).strftime('%B').capitalize()) for m in range(1, 13)]
     return render_template('professor_detalhes.html', professor=professor, meses=meses, anos=anos)
 
@@ -320,7 +320,7 @@ def gastos_por_categoria(categoria):
         abort(404)
 
     ano_atual = datetime.datetime.now().year
-    anos = [ano_atual - 2, ano_atual - 1, ano_atual, ano_atual + 1]
+    anos = [ano_atual, ano_atual + 1, ano_atual - 1]
     parcelas = {
         1: "Fevereiro e Março",
         2: "Abril e Maio",
@@ -659,7 +659,7 @@ def relatorio():
     db.close()
     conn.close()
     ano_atual = datetime.datetime.now().year
-    anos = [ano_atual - 2, ano_atual - 1, ano_atual, ano_atual + 1]
+    anos = [ano_atual, ano_atual + 1, ano_atual - 1]
     meses = [(m, datetime.date(2000, m, 1).strftime('%B').capitalize()) for m in range(1, 13)]
     
     return render_template('relatorio.html', anos=anos, meses=meses, professores=professores)
