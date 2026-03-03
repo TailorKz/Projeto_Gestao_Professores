@@ -113,7 +113,19 @@
             <button type="submit">Salvar Gastos</button>
         </form>
     </div>
+<div class="container">
+        <a href="{{ url_for('gastos_por_categoria', categoria=categoria) }}" class="back-link">&larr; Voltar para Parcelas</a>
+        
+        <div style="float: right;">
+            <a href="{{ url_for('exportar_gastos', categoria=categoria, ano=ano, parcela=parcela) }}" class="button" style="background-color: #28a745; text-decoration: none; display: inline-block;">
+                📊 Baixar Planilha Excel
+            </a>
+        </div>
+        
+        <div style="clear: both;"></div>
 
+        <h1>Controle de Gastos - {{ categoria }}</h1>
+        ```
     <script>
         function apagarGasto(gastoId) {
             if (confirm('Tem a certeza que quer apagar este gasto?')) {

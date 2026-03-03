@@ -429,6 +429,116 @@ def deletar_gasto(gasto_id):
     flash('Gasto não encontrado.', 'error')
     return redirect(url_for('controle_gastos_index'))
 
+@app.route('/controle-gastos/exportar/<categoria>/<int:ano>/<int:parcela>')
+def exportar_gastos(categoria, ano, parcela):
+    # 1. Definição dos nomes das parcelas (igual à rota de visualização)
+    mapa_parcelas = {
+        1: "Fevereiro e Março",
+        2: "Abril e Maio",
+        3: "Junho e Julho",
+        4: "Agosto e Setembro",
+        5: "Outubro, Novembro e Dezembro"
+    }
+    nome_meses = mapa_parcelas.get(parcela, "Período Desconhecido")
+
+    # 2. Buscar dados no Banco de Dados
+    conn, db = get_db()
+    
+    # Buscar Valor Inicial
+    db.execute(
+        'SELECT valor_inicial FROM parcelas WHERE categoria = %s AND ano = %s AND parcela = %s',
+        (categoria, ano, parcela)
+    )
+    res_parcela = db.fetchone()
+    valor_inicial = res_parcela['valor_inicial'] if res_parcela else 0
+
+    # Buscar Gastos
+    db.execute(
+        'SELECT descricao, valor FROM gastos WHERE categoria = %s AND ano = %s AND parcela = %s ORDER BY id',
+        (categoria, ano, parcela)
+    )
+    gastos = db.fetchall()
+    
+    db.close()
+    conn.close()
+
+    # 3. Calcular Totais
+    total_gasto = sum(g['valor'] for g in gastos)
+    saldo = valor_inicial - total_gasto
+
+    # 4. Criar o Arquivo Excel
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Gastos {categoria} - P{parcela}"
+
+    # Estilos
+    font_bold = Font(bold=True)
+    font_title = Font(bold=True, size=14)
+    
+    # Cabeçalho do Relatório
+    ws['A1'] = f"Relatório de Controle de Gastos - {categoria}"
+    ws['A1'].font = font_title
+    
+    ws['A3'] = "Ano:"
+    ws['B3'] = ano
+    
+    ws['A4'] = "Parcela:"
+    ws['B4'] = f"{parcela}ª Parcela ({nome_meses})"
+    
+    ws['A5'] = "Valor Inicial:"
+    ws['B5'] = valor_inicial
+    ws['B5'].number_format = '"R$" #,##0.00'
+    ws['B5'].font = font_bold
+
+    # Cabeçalho da Tabela de Gastos
+    ws['A7'] = "Descrição do Gasto"
+    ws['B7'] = "Valor (R$)"
+    ws['A7'].font = font_bold
+    ws['B7'].font = font_bold
+
+    # Preencher os Gastos
+    linha_atual = 8
+    for gasto in gastos:
+        ws[f'A{linha_atual}'] = gasto['descricao']
+        ws[f'B{linha_atual}'] = gasto['valor']
+        ws[f'B{linha_atual}'].number_format = '#,##0.00'
+        linha_atual += 1
+
+    # Linha de Totais
+    linha_atual += 1 # Pula uma linha
+    
+    ws[f'A{linha_atual}'] = "TOTAL GASTO:"
+    ws[f'B{linha_atual}'] = total_gasto
+    ws[f'A{linha_atual}'].font = font_bold
+    ws[f'B{linha_atual}'].font = font_bold
+    ws[f'B{linha_atual}'].number_format = '"R$" #,##0.00'
+    
+    linha_atual += 1
+    
+    ws[f'A{linha_atual}'] = "SALDO RESTANTE:"
+    ws[f'B{linha_atual}'] = saldo
+    ws[f'A{linha_atual}'].font = font_bold
+    ws[f'B{linha_atual}'].font = font_bold
+    ws[f'B{linha_atual}'].number_format = '"R$" #,##0.00'
+
+    # Ajustar largura das colunas
+    ws.column_dimensions['A'].width = 50
+    ws.column_dimensions['B'].width = 20
+
+    # 5. Salvar na memória e enviar
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    nome_arquivo = f"Gastos_{categoria}_{ano}_Parcela{parcela}.xlsx"
+    
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=nome_arquivo,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
 @app.route('/emprestimos')
 def emprestimos():
     conn, db = get_db()
