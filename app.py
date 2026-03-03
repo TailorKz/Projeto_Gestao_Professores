@@ -15,6 +15,8 @@ from babel.numbers import format_decimal
 import psycopg2.extras
 import subprocess
 from decimal import Decimal
+import yt_dlp
+import glob
 
 # --- CONFIGURAÇÃO DE CAMINHO DINÂMICO ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -935,6 +937,59 @@ def deletar_jogador(jogador_id):
     conn.close()
     flash('Jogador apagado com sucesso.', 'success')
     return redirect(url_for('controle_ginasio'))
+@app.route('/ferramentas/youtube', methods=['GET', 'POST'])
+def youtube_downloader():
+    if request.method == 'POST':
+        url = request.form.get('url')
+        formato = request.form.get('formato')
+        
+        if not url:
+            flash('Por favor, insira uma URL válida.', 'error')
+            return redirect(request.url)
+
+        try:
+            # Configurações do yt-dlp
+            output_template = os.path.join(app.config['UPLOAD_FOLDER'], '%(title)s.%(ext)s')
+            
+            ydl_opts = {
+                'outtmpl': output_template,
+                'quiet': True,
+                'no_warnings': True,
+                'restrictfilenames': True, # Remove caracteres especiais do nome
+            }
+
+            if formato == 'mp3':
+                ydl_opts.update({
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                })
+            else: # mp4
+                ydl_opts.update({
+                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                })
+
+            # Executa o download
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info)
+                
+                # Ajuste para MP3 (o nome do arquivo muda após a conversão)
+                if formato == 'mp3':
+                    filename = os.path.splitext(filename)[0] + '.mp3'
+
+            # Envia o arquivo para o usuário
+            # Nota: Usamos as_attachment=True para forçar o download
+            return send_file(filename, as_attachment=True)
+
+        except Exception as e:
+            flash(f"Erro ao baixar: {str(e)}", 'error')
+            return redirect(request.url)
+
+    return render_template('youtube.html')
 @app.route('/api/ginasios/salvar_lote', methods=['POST'])
 def salvar_lote_ginasio():
     dados = request.get_json()
