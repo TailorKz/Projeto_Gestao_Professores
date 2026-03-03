@@ -3,7 +3,6 @@ from flask import Flask, render_template, abort, url_for, request, redirect, fla
 import datetime
 import os
 from werkzeug.utils import secure_filename
-from ocr_processor import processar_nf
 from pypdf import PdfWriter
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -162,60 +161,62 @@ def detalhes_professor(professor_id):
 def mes_detalhes(professor_id, ano, mes):
     conn = get_db_connection()
     db = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    
+    # Busca dados do professor
     db.execute('SELECT * FROM professores WHERE id = %s', (professor_id,))
     professor = db.fetchone()
     if professor is None: abort(404)
+    
     nome_mes = datetime.date(ano, mes, 1).strftime('%B').capitalize()
 
+    # LÓGICA DE UPLOAD SIMPLIFICADA
     if request.method == 'POST':
         if not s3_client:
             flash("Configuração de armazenamento na nuvem não encontrada.", "error")
             return redirect(request.url)
             
-        arquivos = {'NF': request.files.get('nota_fiscal'), 'Relatorio': request.files.get('relatorio'), 'Chamada': request.files.get('chamada')}
-        for tipo, arquivo in arquivos.items():
+        # Pega a lista de arquivos do campo único 'arquivos_gerais'
+        arquivos = request.files.getlist('arquivos_gerais')
+        
+        uploads_realizados = 0
+        for arquivo in arquivos:
             if arquivo and arquivo.filename != '':
-                filename_seguro = secure_filename(arquivo.filename)
+                filename_original = arquivo.filename
+                filename_seguro = secure_filename(filename_original)
                 
-                # CÓDIGO CORRIGIDO
+                # Caminho temporário
                 caminho_temporario = os.path.join(app.config['UPLOAD_FOLDER'], filename_seguro)
                 arquivo.save(caminho_temporario)
 
-                # Processa o arquivo do caminho salvo
-                if tipo == 'NF':
-                    dados_ocr = processar_nf(caminho_temporario)
-                    print(f"DEBUG: Dados extraídos do OCR para a NF: {dados_ocr}")
-                    nf_numero = dados_ocr.get('numero')
-                    nf_data = dados_ocr.get('data')
-                    nf_valor = dados_ocr.get('valor')
-                else:
-                    dados_ocr = {}
-                    nf_numero = None
-                    nf_data = None
-                    nf_valor = None
+                # Nome final no R2 (Cloudflare)
+                # Ex: 15/2026/03/documento.pdf
+                nome_final_r2 = f"{professor_id}/{ano}/{mes}/{filename_seguro}"
                 
-                # Faz o upload para o R2 e remove o arquivo temporário
-                nome_final_r2 = f"{professor_id}/{ano}/{mes}/{tipo}_{filename_seguro}"
                 try:
                     s3_client.upload_file(caminho_temporario, BUCKET_NAME, nome_final_r2)
-                    os.remove(caminho_temporario)
+                    os.remove(caminho_temporario) # Limpa temp
+                    
+                    # Insere no banco (SEM OCR, SEM TIPO)
                     db.execute(
-                    'INSERT INTO documentos (professor_id, mes, ano, tipo_documento, caminho_arquivo, nf_numero, nf_data, nf_valor) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)',
-                    (professor_id, mes, ano, tipo, nome_final_r2, nf_numero, nf_data, nf_valor)
+                        'INSERT INTO documentos (professor_id, mes, ano, caminho_arquivo, nome_original) VALUES (%s, %s, %s, %s, %s)',
+                        (professor_id, mes, ano, nome_final_r2, filename_original)
                     )
+                    uploads_realizados += 1
                 except Exception as e:
-                    flash(f"Erro ao fazer upload: {e}", "error")
+                    flash(f"Erro ao fazer upload de {filename_original}: {e}", "error")
         
         conn.commit()
-        db.close()
-        conn.close()
-        flash('Documentos enviados com sucesso!', 'success')
+        if uploads_realizados > 0:
+            flash(f'{uploads_realizados} arquivos enviados com sucesso!', 'success')
         return redirect(url_for('mes_detalhes', professor_id=professor_id, ano=ano, mes=mes))
 
-    db.execute('SELECT * FROM documentos WHERE professor_id = %s AND mes = %s AND ano = %s', (professor_id, mes, ano))
-    docs_db = db.fetchall()
-    documentos = {doc['tipo_documento']: doc for doc in docs_db}
+    # LÓGICA DE VISUALIZAÇÃO
+    db.execute('SELECT * FROM documentos WHERE professor_id = %s AND mes = %s AND ano = %s ORDER BY data_upload DESC', (professor_id, mes, ano))
+    documentos = db.fetchall()
+    
     db.close()
+    conn.close()
+    
     return render_template('mes_detalhes.html', professor=professor, mes_numero=mes, nome_mes=nome_mes, ano=ano, documentos=documentos)
 
 @app.route('/view/<path:filename>')
