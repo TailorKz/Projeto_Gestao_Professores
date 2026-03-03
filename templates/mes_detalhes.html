@@ -34,17 +34,14 @@
         .upload-btn {
             background-color: #007bff; color: white; padding: 12px 24px; 
             border: none; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 15px;
+            z-index: 10; /* Garante que o botão fique acima */
+            position: relative;
         }
+        .upload-btn:hover { background-color: #0056b3; }
 
-        /* Esconde o input original mas mantém ele funcional */
+        /* Esconde o input original completamente */
         #file-input {
-            opacity: 0;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            cursor: pointer;
+            display: none; 
         }
         
         /* Galeria de Arquivos */
@@ -97,11 +94,11 @@
 
         <form method="post" enctype="multipart/form-data" class="upload-area" id="drop-zone">
             <h3 style="margin-top: 0;">Arraste e Solte Arquivos Aqui</h3>
-            <p id="drop-text">Ou clique em qualquer lugar desta área para selecionar</p>
+            <p id="drop-text">Ou clique nesta área para selecionar</p>
             
             <input type="file" name="arquivos_gerais" multiple required id="file-input">
             
-            <button type="submit" class="upload-btn">⬆️ Enviar Arquivos</button>
+            <button type="submit" class="upload-btn" id="btn-submit">⬆️ Enviar Arquivos</button>
         </form>
 
         <hr>
@@ -140,8 +137,18 @@
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const dropText = document.getElementById('drop-text');
+        const btnSubmit = document.getElementById('btn-submit');
 
-        // Eventos para dar feedback visual quando arrastar por cima
+        // --- LÓGICA DE CLIQUE ---
+        // Se clicar na área azul, abre o seletor.
+        // Se clicar no botão, NÃO abre o seletor (deixa o form enviar).
+        dropZone.addEventListener('click', function(e) {
+            if (e.target !== btnSubmit) {
+                fileInput.click();
+            }
+        });
+
+        // --- LÓGICA DE DRAG AND DROP ---
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropZone.addEventListener(eventName, preventDefaults, false);
         });
@@ -151,23 +158,14 @@
             e.stopPropagation();
         }
 
-        // Adiciona classe visual quando entra na área
+        // Destaque visual
         ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, highlight, false);
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
         });
 
-        // Remove classe visual quando sai
         ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, unhighlight, false);
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
         });
-
-        function highlight(e) {
-            dropZone.classList.add('dragover');
-        }
-
-        function unhighlight(e) {
-            dropZone.classList.remove('dragover');
-        }
 
         // Quando soltar o arquivo
         dropZone.addEventListener('drop', handleDrop, false);
@@ -179,22 +177,21 @@
             // Passa os arquivos soltos para o input invisível
             fileInput.files = files;
             
-            // Atualiza o texto para mostrar quantos arquivos foram selecionados
+            atualizarTexto(files);
+        }
+
+        // Quando selecionar manualmente
+        fileInput.addEventListener('change', function() {
+            atualizarTexto(this.files);
+        });
+
+        function atualizarTexto(files) {
             if (files.length > 0) {
                 dropText.innerText = `${files.length} arquivo(s) selecionado(s): ${files[0].name}${files.length > 1 ? ' e outros...' : ''}`;
                 dropText.style.fontWeight = "bold";
                 dropText.style.color = "#0056b3";
             }
         }
-
-        // Também atualiza o texto se o usuário clicar e selecionar manualmente
-        fileInput.addEventListener('change', function() {
-            if (this.files.length > 0) {
-                dropText.innerText = `${this.files.length} arquivo(s) selecionado(s): ${this.files[0].name}${this.files.length > 1 ? ' e outros...' : ''}`;
-                dropText.style.fontWeight = "bold";
-                dropText.style.color = "#0056b3";
-            }
-        });
     </script>
 </body>
 </html>
