@@ -12,20 +12,22 @@ def criar_tabelas():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Cria as tabelas principais
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS professores (
                 id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL,
                 cpf TEXT, cnpj TEXT, dados_bancarios TEXT
             );
 
-            -- TABELA DOCUMENTOS ATUALIZADA (Simplificada)
+            -- TABELA DOCUMENTOS ATUALIZADA (Nova versão simplificada)
             CREATE TABLE IF NOT EXISTS documentos (
                 id SERIAL PRIMARY KEY,
                 professor_id INTEGER NOT NULL,
                 mes INTEGER NOT NULL,
                 ano INTEGER NOT NULL,
                 caminho_arquivo TEXT NOT NULL,
-                nome_original TEXT NOT NULL, -- Novo campo para mostrar o nome real do arquivo
+                nome_original TEXT NOT NULL, -- Novo campo para o nome do arquivo
                 data_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (professor_id) REFERENCES professores (id) ON DELETE CASCADE
             );
