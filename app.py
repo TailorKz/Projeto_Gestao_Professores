@@ -948,16 +948,33 @@ def youtube_downloader():
             return redirect(request.url)
 
         try:
-            # Configurações do yt-dlp
+            # Define o caminho do arquivo de saída
             output_template = os.path.join(app.config['UPLOAD_FOLDER'], '%(title)s.%(ext)s')
             
+            # --- CONFIGURAÇÃO ROBUSTA ANTI-BLOQUEIO ---
             ydl_opts = {
                 'outtmpl': output_template,
                 'quiet': True,
                 'no_warnings': True,
-                'restrictfilenames': True, # Remove caracteres especiais do nome
+                'restrictfilenames': True,
+                'nocheckcertificate': True,
+                'geo_bypass': True,
+                # Tenta simular clientes móveis (Android/iOS) que sofrem menos bloqueios
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'ios']
+                    }
+                }
             }
+            
+            # --- PLANO B: Verifica se existe um arquivo de cookies (cookies.txt) ---
+            # Se você fizer upload de um arquivo chamado 'cookies.txt' na pasta do projeto,
+            # ele usará sua autenticação real para burlar o bloqueio.
+            cookies_path = os.path.join(BASE_DIR, 'cookies.txt')
+            if os.path.exists(cookies_path):
+                ydl_opts['cookiefile'] = cookies_path
 
+            # Ajustes específicos para MP3 vs MP4
             if formato == 'mp3':
                 ydl_opts.update({
                     'format': 'bestaudio/best',
@@ -969,6 +986,7 @@ def youtube_downloader():
                 })
             else: # mp4
                 ydl_opts.update({
+                    # Tenta baixar o melhor vídeo que tenha áudio junto, ou combina
                     'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 })
 
@@ -981,12 +999,11 @@ def youtube_downloader():
                 if formato == 'mp3':
                     filename = os.path.splitext(filename)[0] + '.mp3'
 
-            # Envia o arquivo para o usuário
-            # Nota: Usamos as_attachment=True para forçar o download
             return send_file(filename, as_attachment=True)
 
         except Exception as e:
-            flash(f"Erro ao baixar: {str(e)}", 'error')
+            # Mostra o erro na tela para ajudar a debugar se persistir
+            flash(f"Erro ao baixar (YouTube bloqueou o servidor): {str(e)}", 'error')
             return redirect(request.url)
 
     return render_template('youtube.html')
