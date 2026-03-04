@@ -17,7 +17,20 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #343a40; color: white; }
-        td.nome-prof { text-align: left; font-weight: bold; color: #555; }
+        
+        /* MUDANÇA AQUI: Cursor pointer no nome para indicar clique */
+        td.nome-prof { 
+            text-align: left; 
+            font-weight: bold; 
+            color: #555; 
+            cursor: pointer; 
+            user-select: none; /* Evita selecionar o texto ao clicar rápido */
+        }
+        td.nome-prof:hover {
+            color: #0056b3;
+            background-color: #e9ecef;
+        }
+
         tr:nth-child(even) { background-color: #f2f2f2; }
 
         /* Checkboxes maiores */
@@ -58,7 +71,7 @@
         <table>
             <thead>
                 <tr>
-                    <th style="width: 30%;">Professor</th>
+                    <th style="width: 30%;">Professor <small style="display:block; font-weight:normal; color:#ccc;">(Clique no nome para marcar todos)</small></th>
                     <th title="Nota Fiscal">📄 NF</th>
                     <th title="Lista de Presença">📝 Lista</th>
                     <th title="Relatório Mensal">📊 Relatório</th>
@@ -68,7 +81,7 @@
             <tbody>
                 {% for p in professores %}
                 <tr class="linha-prof" data-id="{{ p.id }}">
-                    <td class="nome-prof">
+                    <td class="nome-prof" title="Clique para marcar/desmarcar a linha toda">
                         {{ p.nome }}
                         <span class="badge badge-{{ p.categoria|lower }}">{{ p.categoria }}</span>
                     </td>
@@ -85,6 +98,28 @@
     </div>
 
     <script>
+        // --- FUNÇÃO DE SELECIONAR LINHA INTEIRA ---
+        document.querySelectorAll('.nome-prof').forEach(td => {
+            td.addEventListener('click', function() {
+                const tr = this.parentElement;
+                const checkboxes = tr.querySelectorAll('input[type="checkbox"]');
+                
+                // Verifica se todas JÁ estão marcadas
+                let todasMarcadas = true;
+                checkboxes.forEach(chk => {
+                    if (!chk.checked) todasMarcadas = false;
+                });
+
+                // Se todas já estavam marcadas, desmarca tudo. Senão, marca tudo.
+                const novoEstado = !todasMarcadas;
+                
+                checkboxes.forEach(chk => {
+                    chk.checked = novoEstado;
+                });
+            });
+        });
+
+        // --- FUNÇÃO DE SALVAR ---
         async function salvarTudo() {
             const btn = document.getElementById('btnSalvar');
             btn.innerText = "Salvando...";
