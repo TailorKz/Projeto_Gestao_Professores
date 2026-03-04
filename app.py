@@ -15,8 +15,6 @@ from babel.numbers import format_decimal
 import psycopg2.extras
 import subprocess
 from decimal import Decimal
-import yt_dlp
-import glob
 
 # --- CONFIGURAÇÃO DE CAMINHO DINÂMICO ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -937,76 +935,7 @@ def deletar_jogador(jogador_id):
     conn.close()
     flash('Jogador apagado com sucesso.', 'success')
     return redirect(url_for('controle_ginasio'))
-@app.route('/ferramentas/youtube', methods=['GET', 'POST'])
-def youtube_downloader():
-    if request.method == 'POST':
-        url = request.form.get('url')
-        formato = request.form.get('formato')
-        
-        if not url:
-            flash('Por favor, insira uma URL válida.', 'error')
-            return redirect(request.url)
 
-        try:
-            # Define o caminho do arquivo de saída
-            output_template = os.path.join(app.config['UPLOAD_FOLDER'], '%(title)s.%(ext)s')
-            
-            # --- CONFIGURAÇÃO ROBUSTA ANTI-BLOQUEIO ---
-            ydl_opts = {
-                'outtmpl': output_template,
-                'quiet': True,
-                'no_warnings': True,
-                'restrictfilenames': True,
-                'nocheckcertificate': True,
-                'geo_bypass': True,
-                # Tenta simular clientes móveis (Android/iOS) que sofrem menos bloqueios
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'ios']
-                    }
-                }
-            }
-            
-            # --- PLANO B: Verifica se existe um arquivo de cookies (cookies.txt) ---
-            # Se você fizer upload de um arquivo chamado 'cookies.txt' na pasta do projeto,
-            # ele usará sua autenticação real para burlar o bloqueio.
-            cookies_path = os.path.join(BASE_DIR, 'cookies.txt')
-            if os.path.exists(cookies_path):
-                ydl_opts['cookiefile'] = cookies_path
-
-            # Ajustes específicos para MP3 vs MP4
-            if formato == 'mp3':
-                ydl_opts.update({
-                    'format': 'bestaudio/best',
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }],
-                })
-            else: # mp4
-                ydl_opts.update({
-                    # Tenta baixar o melhor vídeo que tenha áudio junto, ou combina
-                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                })
-
-            # Executa o download
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
-                
-                # Ajuste para MP3 (o nome do arquivo muda após a conversão)
-                if formato == 'mp3':
-                    filename = os.path.splitext(filename)[0] + '.mp3'
-
-            return send_file(filename, as_attachment=True)
-
-        except Exception as e:
-            # Mostra o erro na tela para ajudar a debugar se persistir
-            flash(f"Erro ao baixar (YouTube bloqueou o servidor): {str(e)}", 'error')
-            return redirect(request.url)
-
-    return render_template('youtube.html')
 @app.route('/api/ginasios/salvar_lote', methods=['POST'])
 def salvar_lote_ginasio():
     dados = request.get_json()
