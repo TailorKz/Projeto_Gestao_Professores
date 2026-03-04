@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Checklist de Entregas</title>
+    <link rel="icon" href="{{ url_for('static', filename='logo.ico') }}">
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #444; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .back-link { display: inline-block; margin-bottom: 20px; padding: 8px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 5px; }
+        
+        .filter-bar { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
+        select, button.filter-btn { padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; }
+        button.filter-btn { background-color: #007bff; color: white; border: none; cursor: pointer; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th { background-color: #343a40; color: white; }
+        td.nome-prof { text-align: left; font-weight: bold; color: #555; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+
+        /* Checkboxes maiores */
+        input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: #28a745; }
+
+        .btn-salvar {
+            background-color: #28a745; color: white; font-size: 1.2em; font-weight: bold;
+            width: 100%; margin-top: 20px; padding: 15px; border: none; border-radius: 5px; cursor: pointer;
+            transition: background 0.3s;
+        }
+        .btn-salvar:hover { background-color: #218838; }
+        
+        .badge { font-size: 0.8em; padding: 2px 6px; border-radius: 4px; color: white; margin-left: 5px; }
+        .badge-cultura { background-color: #17a2b8; }
+        .badge-esporte { background-color: #ffc107; color: black; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('ferramentas_pdf') }}" class="back-link">&larr; Voltar para Ferramentas</a>
+        <h1>Checklist de Entregas e Pagamentos</h1>
+
+        <form class="filter-bar" method="get">
+            <label><strong>Filtrar Período:</strong></label>
+            <select name="mes">
+                {% for num, nome in meses %}
+                <option value="{{ num }}" {% if num == mes_selecionado %}selected{% endif %}>{{ nome }}</option>
+                {% endfor %}
+            </select>
+            <select name="ano">
+                {% for y in anos %}
+                <option value="{{ y }}" {% if y == ano_selecionado %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="filter-btn">Carregar</button>
+        </form>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 30%;">Professor</th>
+                    <th title="Nota Fiscal">📄 NF</th>
+                    <th title="Lista de Presença">📝 Lista</th>
+                    <th title="Relatório Mensal">📊 Relatório</th>
+                    <th title="Pagamento Realizado" style="background-color: #1e7e34;">💰 Pago</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in professores %}
+                <tr class="linha-prof" data-id="{{ p.id }}">
+                    <td class="nome-prof">
+                        {{ p.nome }}
+                        <span class="badge badge-{{ p.categoria|lower }}">{{ p.categoria }}</span>
+                    </td>
+                    <td><input type="checkbox" class="chk-nf" {% if p.nf_ok %}checked{% endif %}></td>
+                    <td><input type="checkbox" class="chk-lista" {% if p.lista_ok %}checked{% endif %}></td>
+                    <td><input type="checkbox" class="chk-relatorio" {% if p.relatorio_ok %}checked{% endif %}></td>
+                    <td style="background-color: #e8f5e9;"><input type="checkbox" class="chk-pago" {% if p.pago_ok %}checked{% endif %}></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <button onclick="salvarTudo()" class="btn-salvar" id="btnSalvar">💾 Salvar Alterações</button>
+    </div>
+
+    <script>
+        async function salvarTudo() {
+            const btn = document.getElementById('btnSalvar');
+            btn.innerText = "Salvando...";
+            btn.disabled = true;
+
+            const linhas = document.querySelectorAll('.linha-prof');
+            const itens = [];
+
+            linhas.forEach(tr => {
+                itens.push({
+                    professor_id: tr.getAttribute('data-id'),
+                    nf: tr.querySelector('.chk-nf').checked,
+                    lista: tr.querySelector('.chk-lista').checked,
+                    relatorio: tr.querySelector('.chk-relatorio').checked,
+                    pago: tr.querySelector('.chk-pago').checked
+                });
+            });
+
+            // Pega o ano e mes selecionados nos selects
+            const mes = document.querySelector('select[name="mes"]').value;
+            const ano = document.querySelector('select[name="ano"]').value;
+
+            try {
+                const response = await fetch('/api/checklist/salvar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mes, ano, itens })
+                });
+
+                if (response.ok) {
+                    alert('Checklist salvo com sucesso!');
+                    location.reload(); // Recarrega para confirmar
+                } else {
+                    alert('Erro ao salvar.');
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Erro de conexão.');
+            } finally {
+                btn.innerText = "💾 Salvar Alterações";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

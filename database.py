@@ -19,6 +19,19 @@ def criar_tabelas():
                 id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL,
                 cpf TEXT, cnpj TEXT, dados_bancarios TEXT
             );
+            -- TABELA DE CHECKLIST MENSAL (NOVA)
+            CREATE TABLE IF NOT EXISTS checklist_mensal (
+                id SERIAL PRIMARY KEY,
+                professor_id INTEGER NOT NULL,
+                mes INTEGER NOT NULL,
+                ano INTEGER NOT NULL,
+                nf_ok BOOLEAN DEFAULT FALSE,
+                lista_ok BOOLEAN DEFAULT FALSE,
+                relatorio_ok BOOLEAN DEFAULT FALSE,
+                pago_ok BOOLEAN DEFAULT FALSE,
+                UNIQUE(professor_id, mes, ano),
+                FOREIGN KEY (professor_id) REFERENCES professores (id) ON DELETE CASCADE
+            );
 
             -- TABELA DOCUMENTOS ATUALIZADA (Nova versão simplificada)
             CREATE TABLE IF NOT EXISTS documentos (

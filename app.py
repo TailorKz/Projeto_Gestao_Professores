@@ -972,7 +972,93 @@ def salvar_lote_ginasio():
     db.close()
     conn.close()
     return jsonify({'status': 'sucesso'})
+# --- ROTA DO CHECKLIST MENSAL ---
+@app.route('/ferramentas/checklist')
+def checklist_mensal():
+    # 1. Pega mês e ano da URL ou usa o atual
+    hoje = datetime.date.today()
+    ano = request.args.get('ano', type=int, default=hoje.year)
+    mes = request.args.get('mes', type=int, default=hoje.month)
 
+    conn, db = get_db()
+
+    # 2. Busca todos os professores ativos (ordenados por nome)
+    db.execute("SELECT id, nome, categoria FROM professores ORDER BY nome")
+    professores = db.fetchall()
+
+    # 3. Busca o checklist salvo para esse mês/ano
+    db.execute(
+        "SELECT * FROM checklist_mensal WHERE mes = %s AND ano = %s",
+        (mes, ano)
+    )
+    checklist_db = db.fetchall()
+    
+    # Transforma em um dicionário para fácil acesso: { professor_id: {dados...} }
+    checklist_map = {item['professor_id']: item for item in checklist_db}
+
+    db.close()
+    conn.close()
+
+    # 4. Monta a lista final combinando Professor + Status
+    lista_professores = []
+    for prof in professores:
+        # Pega os dados salvos ou cria um padrão "Falso" se não existir ainda
+        dados_salvos = checklist_map.get(prof['id'], {})
+        
+        lista_professores.append({
+            'id': prof['id'],
+            'nome': prof['nome'],
+            'categoria': prof['categoria'],
+            'nf_ok': dados_salvos.get('nf_ok', False),
+            'lista_ok': dados_salvos.get('lista_ok', False),
+            'relatorio_ok': dados_salvos.get('relatorio_ok', False),
+            'pago_ok': dados_salvos.get('pago_ok', False)
+        })
+
+    meses = [(m, datetime.date(2000, m, 1).strftime('%B').capitalize()) for m in range(1, 13)]
+    
+    return render_template(
+        'checklist.html', 
+        professores=lista_professores,
+        anos=[hoje.year-1, hoje.year, hoje.year+1],
+        meses=meses,
+        ano_selecionado=ano,
+        mes_selecionado=mes
+    )
+
+@app.route('/api/checklist/salvar', methods=['POST'])
+def salvar_checklist():
+    dados = request.get_json()
+    ano = dados.get('ano')
+    mes = dados.get('mes')
+    itens = dados.get('itens', []) # Lista com os status de cada professor
+
+    conn, db = get_db()
+    
+    for item in itens:
+        prof_id = item['professor_id']
+        nf = item['nf']
+        lista = item['lista']
+        relatorio = item['relatorio']
+        pago = item['pago']
+
+        # Salva ou Atualiza (Upsert)
+        db.execute('''
+            INSERT INTO checklist_mensal (professor_id, mes, ano, nf_ok, lista_ok, relatorio_ok, pago_ok)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (professor_id, mes, ano)
+            DO UPDATE SET 
+                nf_ok = EXCLUDED.nf_ok,
+                lista_ok = EXCLUDED.lista_ok,
+                relatorio_ok = EXCLUDED.relatorio_ok,
+                pago_ok = EXCLUDED.pago_ok
+        ''', (prof_id, mes, ano, nf, lista, relatorio, pago))
+
+    conn.commit()
+    db.close()
+    conn.close()
+    
+    return jsonify({'status': 'sucesso'})
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
