@@ -4,7 +4,9 @@ import psycopg2
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
-    conn = psycopg2.connect(DATABASE_URL)
+    print("⏳ Tentando conectar ao Supabase...", flush=True)
+    conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+    print("✅ Conectado com sucesso!", flush=True)
     return conn
 
 def criar_tabelas():
